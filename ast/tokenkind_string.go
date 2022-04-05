@@ -13,8 +13,8 @@ func _() {
 	_ = x[TokenFloat-3]
 	_ = x[TokenString-4]
 	_ = x[TokenChar-5]
-	_ = x[TokenLeftRB-40]
-	_ = x[TokenRightRB-41]
+	_ = x[TokenLeftParen-40]
+	_ = x[TokenRightParen-41]
 }
 
 const (

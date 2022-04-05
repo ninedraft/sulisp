@@ -1,71 +1,70 @@
 package reader
 
 import (
+	"errors"
 	"fmt"
 	"io"
-	"text/scanner"
-	"unicode"
+	"strconv"
 
 	"github.com/ninedraft/sulisp/ast"
-	"github.com/ninedraft/sulisp/internal/multierr"
 )
 
-func Scan(src io.Reader, fname string) *Scanner {
-	var re = &Scanner{}
-	re.sc = &scanner.Scanner{
-		Error: func(sc *scanner.Scanner, msg string) {
-			var err = fmt.Errorf("%s: %s", sc.Position, msg)
-			re.err = multierr.Combine(re.err, err)
-		},
-		IsIdentRune: isIdentRune,
+func Read(src io.Reader, fname string) (ast.Expr, error) {
+	var sc = Scan(src, fname)
+	sc.Scan()
+	if err := sc.Err(); err != nil {
+		return nil, err
 	}
-	re.sc.Init(src)
-	re.sc.Filename = fname
-
-	return re
+	var tok = sc.Token()
+	if tok.Kind != ast.TokenLeftParen {
+		return parseExpr(tok)
+	}
+	return readList(sc)
 }
 
-type Scanner struct {
-	sc    *scanner.Scanner
-	token ast.Token
-	err   error
+func readList(sc *Scanner) (ast.List, error) {
+	var list ast.List
+scan:
+	for sc.Scan() {
+		var token = sc.Token()
+		switch token.Kind {
+		case ast.TokenLeftParen:
+			var l, errList = readList(sc)
+			if errList != nil {
+				return list, errList
+			}
+			list = append(list, l)
+		case ast.TokenRightParen:
+			break scan
+		default:
+			var expr, errExpr = parseExpr(token)
+			if errExpr != nil {
+				return list, errExpr
+			}
+			list = append(list, expr)
+		}
+	}
+	return list, sc.Err()
 }
 
-func (re *Scanner) Scan() bool {
-	var tok = re.sc.Scan()
-	if tok == scanner.EOF || re.err != nil {
-		return false
+var errUnexpectedToken = errors.New("unexpected token")
+
+func parseExpr(token ast.Token) (ast.Expr, error) {
+	switch token.Kind {
+	case ast.TokenString, ast.TokenAtom:
+		return &ast.Literal[string]{Kind: token.Kind, Value: token.Value}, nil
+	case ast.TokenInt:
+		var x, err = strconv.ParseInt(token.Value, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %s", token.Pos, err)
+		}
+		return &ast.Literal[int64]{Kind: token.Kind, Value: x}, nil
+	case ast.TokenFloat:
+		var x, err = strconv.ParseFloat(token.Value, 10)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %s", token.Pos, err)
+		}
+		return &ast.Literal[float64]{Kind: token.Kind, Value: x}, nil
 	}
-	var kind ast.TokenKind
-	switch tok {
-	case scanner.Ident:
-		kind = ast.TokenAtom
-	case scanner.String:
-		kind = ast.TokenString
-	case scanner.Int:
-		kind = ast.TokenInt
-	case scanner.Float:
-		kind = ast.TokenFloat
-	case scanner.Char:
-		kind = ast.TokenChar
-	case '(':
-		kind = ast.TokenLeftRB
-	case ')':
-		kind = ast.TokenRightRB
-	}
-	re.token.Kind = kind
-	re.token.Value = re.sc.TokenText()
-	return true
-}
-
-func (re *Scanner) Err() error { return re.err }
-
-func (re *Scanner) Token() ast.Token { return re.token }
-
-func isIdentRune(ru rune, i int) bool {
-	return unicode.IsLetter(ru) ||
-		(i > 0 && unicode.IsDigit(ru)) ||
-		(i > 0 && ru == ':') ||
-		(ru == '#') ||
-		(ru == '@')
+	return nil, errUnexpectedToken
 }

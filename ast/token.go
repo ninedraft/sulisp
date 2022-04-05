@@ -1,5 +1,7 @@
 package ast
 
+import "text/scanner"
+
 //go:generate stringer -type=TokenKind -linecomment
 type TokenKind rune
 
@@ -10,11 +12,14 @@ const (
 	TokenString                      // string
 	TokenChar                        // char
 
-	TokenLeftRB  = TokenKind('(') // (
-	TokenRightRB = TokenKind(')') // )
+	TokenLeftParen  = TokenKind('(') // (
+	TokenRightParen = TokenKind(')') // )
 )
 
+type Pos = scanner.Position
+
 type Token struct {
+	Pos   Pos
 	Kind  TokenKind
 	Value string
 }
@@ -25,5 +30,3 @@ func NewToken(kind TokenKind, value string) Token {
 		Value: value,
 	}
 }
-
-func (Token) IsListElem() {}
