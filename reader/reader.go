@@ -11,14 +11,6 @@ import (
 
 func Read(src io.Reader, fname string) (ast.Expr, error) {
 	var sc = Scan(src, fname)
-	sc.Scan()
-	if err := sc.Err(); err != nil {
-		return nil, err
-	}
-	var tok = sc.Token()
-	if tok.Kind != ast.TokenLeftParen {
-		return parseExpr(tok)
-	}
 	return readList(sc)
 }
 
@@ -66,5 +58,5 @@ func parseExpr(token ast.Token) (ast.Expr, error) {
 		}
 		return &ast.Literal[float64]{Kind: token.Kind, Value: x}, nil
 	}
-	return nil, errUnexpectedToken
+	return nil, fmt.Errorf("%s %w: %v %q", token.Pos, errUnexpectedToken, token.Kind, token.Value)
 }
