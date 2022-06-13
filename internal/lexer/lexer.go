@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 	"unicode"
 )
@@ -38,12 +39,12 @@ const (
 	TokenAtom
 )
 
-type TokenFlags int64
+type TokenFlags uint64
 
 const (
-	FInt TokenFlags = 1<<iota + 1
-	FHex
+	FInt TokenFlags = 1 << iota
 	FFloat
+	FSymbol
 )
 
 func New(src io.RuneScanner) *Lexer {
@@ -63,6 +64,9 @@ func (lex *Lexer) Scan() Token {
 	for {
 		select {
 		case tok := <-lex.tokens:
+			if tok.IsEnd() {
+				close(lex.tokens)
+			}
 			return tok
 		default:
 			lex.tryScan()
@@ -124,7 +128,8 @@ func (lex *Lexer) lexAtom() scanFn {
 		}
 		lex.backup()
 
-		lex.tokens <- Token{Kind: TokenAtom, Value: value.String()}
+		v := value.String()
+		lex.tokens <- Token{Kind: TokenAtom, Value: v, Flags: tokenFlags(v)}
 		return lex.lexToken
 	}
 }
@@ -208,4 +213,23 @@ func (lex *Lexer) errrorf(format string, args ...any) scanFn {
 		lex.err = fmt.Errorf(format, args...)
 	}
 	return nil
+}
+
+var (
+	isInteger = regexp.MustCompile(`[+-]?[0-9]+`).MatchString
+	isFloat   = regexp.MustCompile(`[+-]?[0-9]+\.[0-9]`).MatchString
+)
+
+func tokenFlags(value string) TokenFlags {
+	var flags TokenFlags
+	if strings.HasPrefix(value, ":") {
+		flags |= FSymbol
+	}
+	if isInteger(value) {
+		flags |= FInt
+	}
+	if isFloat(value) {
+		flags |= FFloat
+	}
+	return flags
 }
