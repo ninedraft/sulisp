@@ -8,34 +8,20 @@ func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
 	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
-	_ = x[TokenAtom-1]
-	_ = x[TokenInt-2]
-	_ = x[TokenFloat-3]
-	_ = x[TokenString-4]
-	_ = x[TokenChar-5]
-	_ = x[TokenLeftParen-40]
-	_ = x[TokenRightParen-41]
+	_ = x[TokenEnd-0]
+	_ = x[TokenLeftPar-1]
+	_ = x[TokenRightPar-2]
+	_ = x[TokenString-3]
+	_ = x[TokenAtom-4]
 }
 
-const (
-	_TokenKind_name_0 = "atomintfloatstringchar"
-	_TokenKind_name_1 = "()"
-)
+const _TokenKind_name = "TokenEnd()stringatom"
 
-var (
-	_TokenKind_index_0 = [...]uint8{0, 4, 7, 12, 18, 22}
-	_TokenKind_index_1 = [...]uint8{0, 1, 2}
-)
+var _TokenKind_index = [...]uint8{0, 8, 9, 10, 16, 20}
 
 func (i TokenKind) String() string {
-	switch {
-	case 1 <= i && i <= 5:
-		i -= 1
-		return _TokenKind_name_0[_TokenKind_index_0[i]:_TokenKind_index_0[i+1]]
-	case 40 <= i && i <= 41:
-		i -= 40
-		return _TokenKind_name_1[_TokenKind_index_1[i]:_TokenKind_index_1[i+1]]
-	default:
+	if i < 0 || i >= TokenKind(len(_TokenKind_index)-1) {
 		return "TokenKind(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
+	return _TokenKind_name[_TokenKind_index[i]:_TokenKind_index[i+1]]
 }

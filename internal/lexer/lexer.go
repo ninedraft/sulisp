@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+
+	"github.com/ninedraft/sulisp/ast"
 )
 
 type Lexer struct {
@@ -16,41 +18,15 @@ type Lexer struct {
 	scan  scanFn
 	width int
 
-	tokens chan Token
+	tokens chan ast.Token
 }
 
-type Token struct {
-	Kind  TokenKind
-	Flags TokenFlags
-	Value string
-}
-
-var endTok = Token{Kind: TokenEnd}
-
-func (token Token) IsEnd() bool { return token.Kind == TokenEnd }
-
-type TokenKind int
-
-const (
-	TokenEnd TokenKind = iota
-	TokenLeftPar
-	TokenRightPar
-	TokenString
-	TokenAtom
-)
-
-type TokenFlags uint64
-
-const (
-	FInt TokenFlags = 1 << iota
-	FFloat
-	FSymbol
-)
+var endTok = ast.Token{Kind: ast.TokenEnd}
 
 func New(src io.RuneScanner) *Lexer {
 	lex := &Lexer{
 		src:    src,
-		tokens: make(chan Token, 2),
+		tokens: make(chan ast.Token, 2),
 	}
 	lex.scan = lex.lexToken
 	return lex
@@ -60,13 +36,10 @@ func (lex *Lexer) Err() error {
 	return lex.err
 }
 
-func (lex *Lexer) Scan() Token {
+func (lex *Lexer) Scan() ast.Token {
 	for {
 		select {
 		case tok := <-lex.tokens:
-			if tok.IsEnd() {
-				close(lex.tokens)
-			}
 			return tok
 		default:
 			lex.tryScan()
@@ -98,11 +71,11 @@ func (lex *Lexer) lexToken() scanFn {
 		lex.backup()
 
 		if lex.expect(eq("(")) {
-			lex.tokens <- Token{Kind: TokenLeftPar, Value: "("}
+			lex.tokens <- ast.Token{Kind: ast.TokenLeftPar, Value: "("}
 			return lex.lexToken
 		}
 		if lex.expect(eq(")")) {
-			lex.tokens <- Token{Kind: TokenRightPar, Value: ")"}
+			lex.tokens <- ast.Token{Kind: ast.TokenRightPar, Value: ")"}
 			return lex.lexToken
 		}
 		if isAtom(lex.peek()) {
@@ -129,7 +102,7 @@ func (lex *Lexer) lexAtom() scanFn {
 		lex.backup()
 
 		v := value.String()
-		lex.tokens <- Token{Kind: TokenAtom, Value: v, Flags: tokenFlags(v)}
+		lex.tokens <- ast.Token{Kind: ast.TokenAtom, Value: v, Flags: tokenFlags(v)}
 		return lex.lexToken
 	}
 }
@@ -144,7 +117,7 @@ func (lex *Lexer) lexString() scanFn {
 			return nil
 		}
 		if ru == '"' {
-			lex.tokens <- Token{Kind: TokenAtom, Value: value.String()}
+			lex.tokens <- ast.Token{Kind: ast.TokenAtom, Value: value.String()}
 			return lex.lexToken
 		}
 		switch {
@@ -220,16 +193,16 @@ var (
 	isFloat   = regexp.MustCompile(`[+-]?[0-9]+\.[0-9]`).MatchString
 )
 
-func tokenFlags(value string) TokenFlags {
-	var flags TokenFlags
+func tokenFlags(value string) ast.TokenFlags {
+	var flags ast.TokenFlags
 	if strings.HasPrefix(value, ":") {
-		flags |= FSymbol
+		flags |= ast.FSymbol
 	}
 	if isInteger(value) {
-		flags |= FInt
+		flags |= ast.FInt
 	}
 	if isFloat(value) {
-		flags |= FFloat
+		flags |= ast.FFloat
 	}
 	return flags
 }
