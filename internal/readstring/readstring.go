@@ -11,6 +11,7 @@ import (
 	"golang.org/x/exp/maps"
 )
 
+// ErrUnexpectedRune means that reader got a strange rune at wrong position
 var ErrUnexpectedRune = errors.New("unexpected rune")
 
 func Read(re io.RuneReader) (string, error) {
