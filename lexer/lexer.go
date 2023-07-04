@@ -170,7 +170,7 @@ scan:
 }
 
 func isNameRune(ru rune) bool {
-	return unicode.IsDigit(ru) || unicode.IsLetter(ru) || strings.ContainsRune("+-*/%&|!?:", ru)
+	return unicode.IsDigit(ru) || unicode.IsLetter(ru) || strings.ContainsRune(".+-*/%&|!?:<>", ru)
 }
 
 // keywords + symbols
@@ -197,18 +197,19 @@ scan:
 		buf.WriteRune(r)
 	}
 
+	lit := buf.String()
+
 	kind := language.TokenSymbol
 	if r == ':' {
 		kind = language.TokenKeyword
+		lit = lit[1:]
 	}
-
-	lit := buf.String()
 
 	if lit == "true" || lit == "false" {
 		kind = language.TokenBool
 	}
 
-	return lexer.newToken(kind, buf.String()), nil
+	return lexer.newToken(kind, lit), nil
 }
 
 type Error struct {

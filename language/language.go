@@ -107,6 +107,8 @@ type Literal[E LiteralValue] struct {
 	Value E
 }
 
+func (*Literal[E]) IsLiteral() {}
+
 func (lit *Literal[E]) String() string {
 	if unsafe.Sizeof(lit.Value) == 0 {
 		return "nothing"

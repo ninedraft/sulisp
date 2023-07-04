@@ -110,7 +110,7 @@ func parseBool(tok *language.Token) (*language.Literal[bool], error) {
 }
 
 func (parser *Parser) readSexp() (language.Sexp, error) {
-	var exps []language.Expression
+	exps := []language.Expression{}
 	head, ok := parser.next()
 	if !ok {
 		return nil, io.EOF
