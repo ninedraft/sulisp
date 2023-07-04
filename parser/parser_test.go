@@ -49,4 +49,7 @@ func TestParse(t *testing.T) {
 
 	// (define-constant PI 3.14159)
 	assert.EqualValues(t, 3.14159, got.Get(`#(1="PI").2.Value`).Value())
+
+	// (setf variable (+ 10 20))
+	assert.Equal(t, "+", got.Get(`#(1="variable").2.0`).Value())
 }
