@@ -150,14 +150,14 @@ scan:
 	var errInt error
 
 	switch {
+	case lit == "+" || lit == "-":
+		return lexer.newToken(language.TokenSymbol, lit), nil
 	case strings.HasPrefix(lit, "0x"):
 		_, errInt = strconv.ParseInt(lit, 16, 64)
 	case strings.HasPrefix(lit, "0o"):
 		_, errInt = strconv.ParseInt(lit, 8, 64)
 	case strings.HasPrefix(lit, "0b"):
 		_, errInt = strconv.ParseInt(lit, 2, 64)
-	case lit == "+" || lit == "-":
-		return lexer.newToken(language.TokenSymbol, lit), nil
 	default:
 		_, errInt = strconv.ParseInt(lit, 10, 64)
 	}

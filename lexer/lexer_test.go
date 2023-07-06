@@ -3,6 +3,7 @@ package lexer_test
 import (
 	"bytes"
 	_ "embed"
+	"strings"
 	"testing"
 
 	"github.com/ninedraft/sulisp/language"
@@ -11,6 +12,47 @@ import (
 
 //go:embed testdata/valid.lisp
 var validInput []byte
+
+func TestLexer_FuncSignature(t *testing.T) {
+	t.Parallel()
+	t.Log(
+		"Testing lexer for function signature",
+	)
+
+	const input = `(x :- int => int)`
+
+	lex := &lexer.Lexer{
+		File:  t.Name(),
+		Input: strings.NewReader(input),
+	}
+
+	if err := lex.Run(); err != nil {
+		t.Fatal("lexing input", err)
+	}
+
+	assert := func(i int, kind language.TokenKind, value string) {
+		t.Helper()
+		tok := lex.Tokens[i]
+		if tok.Kind != kind {
+			t.Errorf("unexpected token kind at %d: got %s (%q), expected %s", i, tok.Kind, tok.Value, kind)
+		}
+		if tok.Value != value {
+			t.Errorf("unexpected token value at %d: got %s, expected %s", i, tok.Value, value)
+		}
+	}
+
+	if len(lex.Tokens) != 7 {
+		t.Errorf("unexpected number of tokens: got %d, expected %d", len(lex.Tokens), 7)
+	}
+
+	assert(0, language.TokenLBrace, "(")
+	assert(1, language.TokenSymbol, "x")
+	assert(2, language.TokenKeyword, "-")
+	assert(3, language.TokenSymbol, "int")
+	assert(4, language.TokenSymbol, "=>")
+	assert(5, language.TokenSymbol, "int")
+	assert(6, language.TokenRBrace, ")")
+}
 
 func TestLexer(t *testing.T) {
 	t.Parallel()

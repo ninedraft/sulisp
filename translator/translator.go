@@ -134,102 +134,131 @@ translates to
 func (t *translator) translateFunc(in language.Expression) (*goast.FuncDecl, error) {
 	spec, ok := in.(language.Sexp)
 	if !ok {
-		return nil, fmt.Errorf("%s: %w: expected (defn (arg1 arg2 :- typ1 arg3 :- typ2 > result) body...): unexpected input %T",
+		return nil, fmt.Errorf("%s: %w: expected (defn (arg1 arg2 :- typ1 arg3 :- typ2 => result) body...): unexpected input %T",
 			in, ErrInvalidDecl, in)
 	}
 
 	if len(spec) != 4 {
-		return nil, fmt.Errorf("%s: %w: expected (defn (arg1 arg2 :- typ1 arg3 :- typ2 > result) body...): not enough items %d", in, ErrInvalidDecl, len(spec))
+		return nil, fmt.Errorf("%s: %w: expected (defn (arg1 arg2 :- typ1 arg3 :- typ2 => result) body...): not enough items %d", in, ErrInvalidDecl, len(spec))
 	}
 
 	h := spec[1]
 	name, ok := h.(language.Symbol)
 	if !ok {
-		return nil, fmt.Errorf("%s: %w: expected (defn (arg1 arg2 :- typ1 arg3 :- typ2 > result) body...): unexpected name ident %T", in, ErrInvalidDecl, h)
+		return nil, fmt.Errorf("%s: %w: expected (defn (arg1 arg2 :- typ1 arg3 :- typ2 => result) body...): unexpected name ident %T", in, ErrInvalidDecl, h)
 	}
-
-	var (
-		args   []*goast.Field
-		result []*goast.Field
-	)
 
 	head, ok := spec[2].(language.Sexp)
 	if !ok {
-		return nil, fmt.Errorf("%s: %w: expected (defn (arg1 arg2 :- typ1 arg3 :- typ2 > result) body...): unexpected function spec %T", in, ErrInvalidDecl, spec[2])
+		return nil, fmt.Errorf("%s: %w: expected (defn (arg1 arg2 :- typ1 arg3 :- typ2 => result) body...): unexpected function spec %T", in, ErrInvalidDecl, spec[2])
 	}
 
-	// scan function arguments with types
-	var field *goast.Field
-	arrowIndex := len(head)
-	for i, arg := range head {
-		if isKeyword(arg, "-") {
-			t, err := t.translateExpr(arg)
-			if err != nil {
-				return nil, fmt.Errorf("%w: argument %d", err, i+1)
-			}
-			field.Type = t
-			args = append(args, field)
-			field = nil
-			continue
-		}
-
-		if isSymbol(arg, ">") {
-			arrowIndex = i
-			break
-		}
-
-		if field == nil {
-			field = &goast.Field{}
-		}
-
-		name, ok := arg.(language.Symbol)
-		if !ok {
-			return nil, fmt.Errorf("%s: %w: expected (defn (arg1 arg2 :- typ1 arg3 :- typ2 > result) body...): unexpected arg %d type %T %q", in, ErrInvalidDecl, i+1, arg, arg)
-		}
-
-		field.Names = append(field.Names, goast.NewIdent(name.String()))
-	}
-
-	if field != nil {
-		args = append(args, field)
-		field = nil
-	}
-
-	for i, arg := range head[arrowIndex:] {
-		name, ok := arg.(language.Symbol)
-		if !ok {
-			return nil, fmt.Errorf("%s: %w: expected (defn (arg1 arg2 :- typ1 arg3 :- typ2 > result) body...): return type %d: unexpected type %T", in, ErrInvalidDecl, i+1, arg)
-		}
-
-		result = append(result, &goast.Field{
-			Type: goast.NewIdent(name.String()),
-		})
+	sign, errSign := t.translateFuncType(head)
+	if errSign != nil {
+		return nil, fmt.Errorf("%s: %w", in, errSign)
 	}
 
 	var body []goast.Stmt
 	for i, expr := range spec[3:] {
-		stmt, err := t.translateExpr(expr)
+		parsed, err := t.translateExpr(expr)
 		if err != nil {
 			return nil, fmt.Errorf("%w: body expr %d", err, i+1)
 		}
 
-		body = append(body, &goast.ExprStmt{
-			X: stmt,
-		})
+		var stmt goast.Stmt = &goast.ExprStmt{
+			X: parsed,
+		}
+		if i == len(spec[3:])-1 && len(sign.Results.List) > 0 {
+			stmt = &goast.ReturnStmt{
+				Results: []goast.Expr{parsed},
+			}
+		}
+
+		body = append(body, stmt)
 	}
 
 	return &goast.FuncDecl{
 		Name: goast.NewIdent(name.String()),
-		Type: &goast.FuncType{
-			Params: &goast.FieldList{
-				List: args,
-			},
-			Results: &goast.FieldList{
-				List: result,
-			},
-		},
+		Type: sign,
 		Body: &goast.BlockStmt{
 			List: body,
+		},
+	}, nil
+}
+
+// parses function signatures
+//
+//	(x y :- int -> int error) translates to func(x int, y int) (int, error)
+//	() translates to func()
+//	(x :- int) translates to func(x int)
+//	(-> int) translates to func() int
+//
+// etc
+func (t *translator) translateFuncType(spec language.Sexp) (*goast.FuncType, error) {
+	returnSepIdx := slices.IndexFunc(spec, func(v language.Expression) bool {
+		return isSymbol(v, "=>")
+	})
+	argsToParse := spec
+	if returnSepIdx > 0 {
+		argsToParse = spec[:returnSepIdx]
+	}
+
+	args := &goast.FieldList{}
+	{
+		field := &goast.Field{}
+		consumeArgName := func(expr language.Expression) error {
+			name, ok := expr.(language.Symbol)
+			if !ok {
+				return fmt.Errorf("expected symbol, got %T", expr)
+			}
+			field.Names = append(field.Names, goast.NewIdent(name.String()))
+			return nil
+		}
+
+		consume := consumeArgName
+
+		consumeType := func(expr language.Expression) error {
+			t, err := t.translateExpr(expr)
+			if err != nil {
+				return err
+			}
+			field.Type = t
+			args.List = append(args.List, field)
+			field = &goast.Field{}
+			consume = consumeArgName
+			return nil
+		}
+
+		for _, arg := range argsToParse {
+			if isKeyword(arg, "-") {
+				consume = consumeType
+				continue
+			}
+			if err := consume(arg); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	result := &goast.FieldList{}
+	if returnSepIdx > 0 {
+		for _, arg := range spec[returnSepIdx+1:] {
+			t, err := t.translateExpr(arg)
+			if err != nil {
+				return nil, err
+			}
+			result.List = append(result.List, &goast.Field{
+				Type: t,
+			})
+		}
+	}
+
+	return &goast.FuncType{
+		Params: &goast.FieldList{
+			List: args.List,
+		},
+		Results: &goast.FieldList{
+			List: result.List,
 		},
 	}, nil
 }

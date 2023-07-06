@@ -26,6 +26,9 @@ func TestTranslate(t *testing.T) {
 		 	y 20 
 			x (float64 (+ x y 100)))
 
+		(defn inc (x :- int => int)
+			(+ x 1))
+
 		(defn main ()  
 			(go fmt.Println "Hello, world!"))
 	`)
@@ -51,6 +54,4 @@ func TestTranslate(t *testing.T) {
 	if err := format.Node(result, fset, file); err != nil {
 		t.Fatal("formatting translated code", err)
 	}
-
-	t.Error(result)
 }
