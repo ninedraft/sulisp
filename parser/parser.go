@@ -56,8 +56,6 @@ func (parser *Parser) readExpr() (language.Expression, error) {
 		return language.Symbol(tok.Value), nil
 	case language.TokenKeyword:
 		return language.Keyword(tok.Value), nil
-	case language.TokenBool:
-		return parseBool(tok)
 	case language.TokenQuote:
 		return parser.readQuote()
 	}
@@ -99,14 +97,6 @@ func parseString(tok *language.Token) (*language.Literal[string], error) {
 		return nil, fmt.Errorf("%s: %w", tok.Pos, err)
 	}
 	return &language.Literal[string]{Value: val}, nil
-}
-
-func parseBool(tok *language.Token) (*language.Literal[bool], error) {
-	val, err := strconv.ParseBool(tok.Value)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", tok.Pos, err)
-	}
-	return &language.Literal[bool]{Value: val}, nil
 }
 
 func (parser *Parser) readSexp() (language.Sexp, error) {
