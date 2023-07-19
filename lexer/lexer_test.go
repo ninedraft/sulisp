@@ -112,6 +112,26 @@ func TestLexer_Atoms(t *testing.T) {
 	assert.Equal(t, language.TokenSymbol.Of("+1symbol"), tokens[7])
 }
 
+func TestLexer_Strings(t *testing.T) {
+	t.Parallel()
+	t.Log(`
+		Strings are sequences of characters enclosed in double quotes.
+		They can contain any characters except double quote.
+		To include double quote in string, use \"
+	`)
+
+	tokens := lexString(t, `
+		"string"
+		"string with \""
+		"multi
+line"
+	`)
+
+	assert.Equal(t, language.TokenStr.Of(`"string"`), tokens[0])
+	assert.Equal(t, language.TokenStr.Of(`"string with \""`), tokens[1])
+	assert.Equal(t, language.TokenStr.Of(`"multi`+"\n"+`line"`), tokens[2])
+}
+
 func lexString(t *testing.T, input string) []*language.Token {
 	l := &lexer.Lexer{
 		File:  t.Name(),

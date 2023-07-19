@@ -65,7 +65,7 @@ func (lexer *Lexer) Next() (*language.Token, error) {
 }
 
 func (lexer *Lexer) readComment() (*language.Token, error) {
-	comment, err := readUntil(lexer.Input, func(ru rune) bool {
+	comment, _, err := readWhile(lexer.Input, func(ru rune) bool {
 		return ru != '\n'
 	})
 	if err != nil {
@@ -143,7 +143,7 @@ func isAtomRune(ru rune) bool {
 // keywords + symbols - strings
 // Yes, it's not a canonical atom definition, but it's enough for now.
 func (lexer *Lexer) readAtom(r rune) (*language.Token, error) {
-	atom, errAtom := readUntil(lexer.Input, isAtomRune, r)
+	atom, _, errAtom := readWhile(lexer.Input, isAtomRune, r)
 	if errAtom != nil {
 		return nil, lexer.errPos(errAtom)
 	}
@@ -205,7 +205,7 @@ func (lexer *Lexer) newToken(kind language.TokenKind, value string) *language.To
 	}
 }
 
-func readUntil(re io.RuneScanner, fn func(ru rune) bool, prepend ...rune) (string, error) {
+func readWhile(re io.RuneScanner, fn func(ru rune) bool, prepend ...rune) (_ string, lastUnread rune, _ error) {
 	buf := &strings.Builder{}
 	for _, ru := range prepend {
 		buf.WriteRune(ru)
@@ -215,13 +215,13 @@ func readUntil(re io.RuneScanner, fn func(ru rune) bool, prepend ...rune) (strin
 		r, _, errRead := re.ReadRune()
 		switch {
 		case errors.Is(errRead, io.EOF):
-			return buf.String(), nil
+			return buf.String(), 0, nil
 		case errRead != nil:
-			return buf.String(), errRead
+			return buf.String(), 0, errRead
 		}
 		if !fn(r) {
 			re.UnreadRune()
-			return buf.String(), nil
+			return buf.String(), r, nil
 		}
 		buf.WriteRune(r)
 	}
