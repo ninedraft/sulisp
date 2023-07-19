@@ -84,6 +84,34 @@ func TestLexer_Comments(t *testing.T) {
 	assert.Equal(t, " 2", tokens[3].Value)
 }
 
+func TestLexer_Atoms(t *testing.T) {
+	t.Parallel()
+	t.Log(`
+		Atoms are sequences of characters that are not
+		whitespace, brackets, quotes or semicolons or '
+	`)
+
+	tokens := lexString(t, `
+		 symbol
+		"string"
+		123 
+		1.23 
+		:keyword
+		1symbol
+		-1symbol'
+		+1symbol
+	`)
+
+	assert.Equal(t, language.TokenSymbol.Of("symbol"), tokens[0])
+	assert.Equal(t, language.TokenStr.Of(`"string"`), tokens[1])
+	assert.Equal(t, language.TokenInt.Of("123"), tokens[2])
+	assert.Equal(t, language.TokenFloat.Of("1.23"), tokens[3])
+	assert.Equal(t, language.TokenKeyword.Of("keyword"), tokens[4])
+	assert.Equal(t, language.TokenSymbol.Of("1symbol"), tokens[5])
+	assert.Equal(t, language.TokenSymbol.Of("-1symbol'"), tokens[6])
+	assert.Equal(t, language.TokenSymbol.Of("+1symbol"), tokens[7])
+}
+
 func lexString(t *testing.T, input string) []*language.Token {
 	l := &lexer.Lexer{
 		File:  t.Name(),
@@ -94,5 +122,13 @@ func lexString(t *testing.T, input string) []*language.Token {
 		t.Fatalf("lexer.Run() failed: %v", err)
 	}
 
+	cleanPos(l.Tokens)
+
 	return l.Tokens
+}
+
+func cleanPos(tokens []*language.Token) {
+	for _, tok := range tokens {
+		tok.Pos = language.Position{}
+	}
 }

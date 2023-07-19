@@ -27,6 +27,13 @@ func (t *Token) String() string {
 //go:generate stringer -type TokenKind -linecomment
 type TokenKind int
 
+func (kind TokenKind) Of(value string) *Token {
+	return &Token{
+		Kind:  kind,
+		Value: value,
+	}
+}
+
 const (
 	TokenLBrace = TokenKind('(') // (
 	TokenRBrace = TokenKind(')') // )
