@@ -5,8 +5,6 @@ import (
 	"strconv"
 	"strings"
 	"unsafe"
-
-	"golang.org/x/exp/constraints"
 )
 
 type Expression interface {
@@ -100,7 +98,7 @@ func (k Keyword) Name() string {
 }
 
 type LiteralValue interface {
-	constraints.Complex | constraints.Signed | constraints.Unsigned | constraints.Float | ~string | ~bool | ~struct{}
+	float64 | int64 | string | bool | struct{}
 }
 
 type Literal[E LiteralValue] struct {
