@@ -7,6 +7,7 @@ import (
 
 	"github.com/ninedraft/sulisp/language"
 	"github.com/ninedraft/sulisp/lexer"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestLexer_FuncSignature(t *testing.T) {
@@ -59,6 +60,28 @@ func TestLexer_S(t *testing.T) {
 	if tok.Value != ">=" {
 		t.Errorf("unexpected token value: got %s, expected %s", tok.Value, ">=")
 	}
+}
+
+func TestLexer_Comments(t *testing.T) {
+	t.Parallel()
+	t.Log(`
+		Comments have following format:
+		
+		; comment \n
+
+		Last space character is not included in comment value.
+	`)
+
+	tokens := lexString(t, `
+		; 1
+		a
+		b ; 2`)
+
+	assert.Equal(t, language.TokenComment, tokens[0].Kind)
+	assert.Equal(t, " 1", tokens[0].Value)
+
+	assert.Equal(t, language.TokenComment, tokens[3].Kind)
+	assert.Equal(t, " 2", tokens[3].Value)
 }
 
 func lexString(t *testing.T, input string) []*language.Token {

@@ -132,3 +132,24 @@ func (lit *Literal[E]) Equal(e Expression) bool {
 
 	return false
 }
+
+type Comment struct {
+	Pos   Position
+	Value string
+}
+
+func (c *Comment) String() string {
+	return ";" + c.Value
+}
+
+func (c *Comment) Clone() Expression {
+	return &Comment{c.Pos, c.Value}
+}
+
+func (c *Comment) Equal(e Expression) bool {
+	if comment, ok := e.(*Comment); ok {
+		return c.Value == comment.Value
+	}
+
+	return false
+}

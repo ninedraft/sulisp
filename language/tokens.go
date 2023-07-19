@@ -42,9 +42,10 @@ const (
 	TokenSymbol  TokenKind = iota + 100 // symbol
 	TokenKeyword                        // :keyword
 
-	TokenInt   // integer
-	TokenFloat // float
-	TokenStr   // string
+	TokenInt     // integer
+	TokenFloat   // float
+	TokenStr     // string
+	TokenComment // ; comment
 )
 
 func (tk TokenKind) GoString() string {
@@ -73,6 +74,8 @@ func (tk TokenKind) GoString() string {
 		return "language.TokenFloat"
 	case TokenStr:
 		return "language.TokenStr"
+	case TokenComment:
+		return "language.TokenComment"
 	default:
 		return fmt.Sprintf("language.TokenKind(%d)", tk)
 	}

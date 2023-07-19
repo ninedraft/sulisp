@@ -20,20 +20,21 @@ func _() {
 	_ = x[TokenInt-109]
 	_ = x[TokenFloat-110]
 	_ = x[TokenStr-111]
+	_ = x[TokenComment-112]
 }
 
 const (
 	_TokenKind_name_0 = "'()"
 	_TokenKind_name_1 = "["
 	_TokenKind_name_2 = "]"
-	_TokenKind_name_3 = "symbol:keywordintegerfloatstring"
+	_TokenKind_name_3 = "symbol:keywordintegerfloatstring; comment"
 	_TokenKind_name_4 = "{"
 	_TokenKind_name_5 = "}"
 )
 
 var (
 	_TokenKind_index_0 = [...]uint8{0, 1, 2, 3}
-	_TokenKind_index_3 = [...]uint8{0, 6, 14, 21, 26, 32}
+	_TokenKind_index_3 = [...]uint8{0, 6, 14, 21, 26, 32, 41}
 )
 
 func (i TokenKind) String() string {
@@ -45,7 +46,7 @@ func (i TokenKind) String() string {
 		return _TokenKind_name_1
 	case i == 93:
 		return _TokenKind_name_2
-	case 107 <= i && i <= 111:
+	case 107 <= i && i <= 112:
 		i -= 107
 		return _TokenKind_name_3[_TokenKind_index_3[i]:_TokenKind_index_3[i+1]]
 	case i == 123:

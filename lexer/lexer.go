@@ -51,6 +51,8 @@ func (lexer *Lexer) Next() (*language.Token, error) {
 		switch {
 		case unicode.IsSpace(r) || r == ',':
 			continue
+		case r == ';':
+			return lexer.readComment()
 		case r == '\'':
 			return lexer.newToken(language.TokenQuote, "'"), nil
 		case strings.ContainsRune(brackets, r):
@@ -61,9 +63,23 @@ func (lexer *Lexer) Next() (*language.Token, error) {
 		case strings.ContainsRune(integerStart, r):
 			return lexer.readNumber(r)
 		default:
-			return lexer.readName(r)
+			return lexer.readAtom(r)
 		}
 	}
+}
+
+func (lexer *Lexer) readComment() (*language.Token, error) {
+	comment, err := readUntil(lexer.Input, func(ru rune) bool {
+		return ru != '\n'
+	})
+	if err != nil {
+		err = fmt.Errorf("reading comment: %w", err)
+		return nil, lexer.errPos(err)
+	}
+
+	comment = strings.TrimRightFunc(comment, unicode.IsSpace)
+
+	return lexer.newToken(language.TokenComment, comment), nil
 }
 
 const escapable = `\"nrts`
@@ -185,7 +201,7 @@ func isNameRune(ru rune) bool {
 }
 
 // keywords + symbols
-func (lexer *Lexer) readName(r rune) (*language.Token, error) {
+func (lexer *Lexer) readAtom(r rune) (*language.Token, error) {
 	buf := &strings.Builder{}
 	buf.WriteRune(r)
 
@@ -256,5 +272,23 @@ func (lexer *Lexer) newToken(kind language.TokenKind, value string) *language.To
 		Kind:  kind,
 		Value: value,
 		Pos:   lexer.pos,
+	}
+}
+
+func readUntil(re io.RuneScanner, fn func(ru rune) bool) (string, error) {
+	buf := &strings.Builder{}
+	for {
+		r, _, errRead := re.ReadRune()
+		switch {
+		case errors.Is(errRead, io.EOF):
+			return buf.String(), nil
+		case errRead != nil:
+			return buf.String(), errRead
+		}
+		if !fn(r) {
+			re.UnreadRune()
+			return buf.String(), nil
+		}
+		buf.WriteRune(r)
 	}
 }
