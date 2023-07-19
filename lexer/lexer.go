@@ -35,8 +35,6 @@ func (lexer *Lexer) Run() error {
 
 const brackets = "[](){}"
 
-const integerStart = "0123456789-+"
-
 func (lexer *Lexer) Next() (*language.Token, error) {
 	for {
 		r, _, errRead := lexer.Input.ReadRune()
@@ -60,8 +58,6 @@ func (lexer *Lexer) Next() (*language.Token, error) {
 			return lexer.newToken(kind, kind.String()), nil
 		case r == '"':
 			return lexer.readString()
-		case strings.ContainsRune(integerStart, r):
-			return lexer.readNumber(r)
 		default:
 			return lexer.readAtom(r)
 		}
@@ -129,63 +125,7 @@ scan:
 	return lexer.newToken(language.TokenStr, buf.String()), nil
 }
 
-// integers + hex + octal + binary
-const numberRunes = "+-0123456789_." + "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-// emits int, float or name (for +-) tokens
-func (lexer *Lexer) readNumber(r rune) (*language.Token, error) {
-	buf := &strings.Builder{}
-	buf.WriteRune(r)
-
-	// read until non-integer rune
-scan:
-	for {
-		r, _, errRead := lexer.Input.ReadRune()
-		switch {
-		case errors.Is(errRead, io.EOF):
-			break scan
-		case errRead != nil:
-			return nil, lexer.errPos(errRead)
-		}
-		lexer.updatePos(r)
-
-		if !strings.ContainsRune(numberRunes, r) {
-			lexer.Input.UnreadRune()
-			break scan
-		}
-		buf.WriteRune(r)
-	}
-
-	lit := buf.String()
-
-	_, errFloat := strconv.ParseFloat(lit, 64)
-	if errFloat == nil {
-		return lexer.newToken(language.TokenFloat, lit), nil
-	}
-
-	var errInt error
-
-	switch {
-	case lit == "+" || lit == "-":
-		return lexer.newToken(language.TokenSymbol, lit), nil
-	case strings.HasPrefix(lit, "0x"):
-		_, errInt = strconv.ParseInt(lit, 16, 64)
-	case strings.HasPrefix(lit, "0o"):
-		_, errInt = strconv.ParseInt(lit, 8, 64)
-	case strings.HasPrefix(lit, "0b"):
-		_, errInt = strconv.ParseInt(lit, 2, 64)
-	default:
-		_, errInt = strconv.ParseInt(lit, 10, 64)
-	}
-
-	if errInt != nil {
-		return nil, lexer.errPos(errInt)
-	}
-
-	return lexer.newToken(language.TokenInt, lit), nil
-}
-
-func isNameRune(ru rune) bool {
+func isAtomRune(ru rune) bool {
 	if unicode.IsSpace(ru) || strings.ContainsRune(brackets, ru) {
 		return false
 	}
@@ -200,39 +140,29 @@ func isNameRune(ru rune) bool {
 	)
 }
 
-// keywords + symbols
+// keywords + symbols - strings
+// Yes, it's not a canonical atom definition, but it's enough for now.
 func (lexer *Lexer) readAtom(r rune) (*language.Token, error) {
-	buf := &strings.Builder{}
-	buf.WriteRune(r)
-
-	// read until non-symbol rune
-scan:
-	for {
-		r, _, errRead := lexer.Input.ReadRune()
-		switch {
-		case errors.Is(errRead, io.EOF):
-			break scan
-		case errRead != nil:
-			return nil, lexer.errPos(errRead)
-		}
-		lexer.updatePos(r)
-
-		if !isNameRune(r) {
-			lexer.Input.UnreadRune()
-			break scan
-		}
-		buf.WriteRune(r)
+	atom, errAtom := readUntil(lexer.Input, isAtomRune, r)
+	if errAtom != nil {
+		return nil, lexer.errPos(errAtom)
 	}
 
-	lit := buf.String()
-
-	kind := language.TokenSymbol
-	if r == ':' {
-		kind = language.TokenKeyword
-		lit = lit[1:]
+	if value, ok := strings.CutPrefix(atom, ":"); ok {
+		return lexer.newToken(language.TokenKeyword, value), nil
 	}
 
-	return lexer.newToken(kind, lit), nil
+	_, errInt := strconv.ParseInt(atom, 10, 64)
+	if errInt == nil {
+		return lexer.newToken(language.TokenInt, atom), nil
+	}
+
+	_, errFloat := strconv.ParseFloat(atom, 64)
+	if errFloat == nil {
+		return lexer.newToken(language.TokenFloat, atom), nil
+	}
+
+	return lexer.newToken(language.TokenSymbol, atom), nil
 }
 
 type Error struct {
@@ -275,8 +205,12 @@ func (lexer *Lexer) newToken(kind language.TokenKind, value string) *language.To
 	}
 }
 
-func readUntil(re io.RuneScanner, fn func(ru rune) bool) (string, error) {
+func readUntil(re io.RuneScanner, fn func(ru rune) bool, prepend ...rune) (string, error) {
 	buf := &strings.Builder{}
+	for _, ru := range prepend {
+		buf.WriteRune(ru)
+	}
+
 	for {
 		r, _, errRead := re.ReadRune()
 		switch {
