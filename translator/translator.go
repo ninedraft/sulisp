@@ -493,7 +493,7 @@ func (t *translator) translateLiteral(in literal) (goast.Expr, error) {
 			Kind:  token.STRING,
 			Value: strconv.Quote(v.Value),
 		}, nil
-	case *language.Literal[int]:
+	case *language.Literal[int64]:
 		return &goast.BasicLit{
 			Kind:  token.INT,
 			Value: v.String(),
