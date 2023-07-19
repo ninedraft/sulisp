@@ -3,6 +3,7 @@ package lexer_test
 import (
 	"bytes"
 	_ "embed"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -54,6 +55,17 @@ func TestLexer_FuncSignature(t *testing.T) {
 	assert(6, language.TokenRBrace, ")")
 }
 
+func TestLexer_S(t *testing.T) {
+	t.Parallel()
+
+	tokens := lexString(t, `(>=)`)
+
+	tok := tokens[1]
+	if tok.Value != ">=" {
+		t.Errorf("unexpected token value: got %s, expected %s", tok.Value, ">=")
+	}
+}
+
 func TestLexer(t *testing.T) {
 	t.Parallel()
 	t.Log(
@@ -71,15 +83,12 @@ func TestLexer(t *testing.T) {
 		t.Error("unexpected error", err)
 	}
 
-	for i, tok := range lex.Tokens {
-		expect := expectedValidTokens[i]
-		if tok.Kind != expect.Kind {
-			t.Errorf("unexpected token kind at %d: got %s, expected %s", i, tok.Kind, expect.Kind)
-		}
-		if tok.Value != expect.Value {
-			t.Errorf("unexpected token value at %d: got %s, expected %s", i, tok.Value, expect.Value)
-		}
+	got := &strings.Builder{}
+	for _, tok := range lex.Tokens {
+		fmt.Fprintf(got, "%s ", tok.Value)
 	}
+
+	t.Error("got", got.String())
 }
 
 var expectedValidTokens = []*language.Token{
@@ -216,4 +225,17 @@ var expectedValidTokens = []*language.Token{
 	{Kind: language.TokenSymbol, Value: "i"},
 	{Kind: language.TokenRBrace, Value: ")"},
 	{Kind: language.TokenRBrace, Value: ")"},
+}
+
+func lexString(t *testing.T, input string) []*language.Token {
+	l := &lexer.Lexer{
+		File:  t.Name(),
+		Input: strings.NewReader(input),
+	}
+
+	if err := l.Run(); err != nil {
+		t.Fatalf("lexer.Run() failed: %v", err)
+	}
+
+	return l.Tokens
 }

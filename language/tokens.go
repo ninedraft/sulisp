@@ -45,7 +45,6 @@ const (
 	TokenInt   // integer
 	TokenFloat // float
 	TokenStr   // string
-	TokenBool  // boolean
 )
 
 func (tk TokenKind) GoString() string {
@@ -74,8 +73,6 @@ func (tk TokenKind) GoString() string {
 		return "language.TokenFloat"
 	case TokenStr:
 		return "language.TokenStr"
-	case TokenBool:
-		return "language.TokenBool"
 	default:
 		return fmt.Sprintf("language.TokenKind(%d)", tk)
 	}

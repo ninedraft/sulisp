@@ -170,7 +170,18 @@ scan:
 }
 
 func isNameRune(ru rune) bool {
-	return unicode.IsDigit(ru) || unicode.IsLetter(ru) || strings.ContainsRune(".+-*/%&|!?:<>", ru)
+	if unicode.IsSpace(ru) || strings.ContainsRune(brackets, ru) {
+		return false
+	}
+
+	return unicode.In(ru,
+		unicode.Letter,
+		unicode.Digit,
+		unicode.Mark,
+		unicode.Other,
+		unicode.Symbol,
+		unicode.Punct,
+	)
 }
 
 // keywords + symbols
@@ -203,10 +214,6 @@ scan:
 	if r == ':' {
 		kind = language.TokenKeyword
 		lit = lit[1:]
-	}
-
-	if lit == "true" || lit == "false" {
-		kind = language.TokenBool
 	}
 
 	return lexer.newToken(kind, lit), nil
