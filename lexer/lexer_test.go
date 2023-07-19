@@ -9,9 +9,6 @@ import (
 	"github.com/ninedraft/sulisp/lexer"
 )
 
-//go:embed testdata/valid.lisp
-var validInput []byte
-
 func TestLexer_FuncSignature(t *testing.T) {
 	t.Parallel()
 	t.Log(
