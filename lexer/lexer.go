@@ -225,7 +225,7 @@ func (lexer *Lexer) readAtom(kind language.TokenKind) (*language.Token, error) {
 }
 
 func isAtomRune(ru rune) bool {
-	if unicode.IsSpace(ru) || containsRune(brackets, ru) || ru == '.' {
+	if unicode.IsSpace(ru) || containsRune(brackets, ru) || ru == '.' || ru == ',' {
 		return false
 	}
 

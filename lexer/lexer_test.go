@@ -120,6 +120,34 @@ func TestLex_Strings_UnexpectedEOF(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestLex_Keyword(t *testing.T) {
+	t.Parallel()
+
+	tokens := readTokens(t, `
+		:a,:b
+		:bvasd
+		:_das
+		:123
+	`)
+
+	want := []language.Token{
+		{Kind: language.TokenKeyword, Value: `:a`},
+		{Kind: language.TokenKeyword, Value: `:b`},
+		{Kind: language.TokenKeyword, Value: `:bvasd`},
+		{Kind: language.TokenKeyword, Value: `:_das`},
+		{Kind: language.TokenKeyword, Value: ":123"},
+	}
+
+	require.Len(t, tokens, len(want), "len(tokens)==len(want)")
+
+	for i, expect := range want {
+		got := tokens[i]
+
+		assert.EqualValues(t, expect.Kind, got.Kind, "[%d] %s token kind", i, got.Pos)
+		assert.EqualValues(t, expect.Value, got.Value, "[%d] %s token value", i, got.Pos)
+	}
+}
+
 func readTokens(t *testing.T, input string) []*language.Token {
 	lex := lexer.NewLexer(t.Name(), strings.NewReader(input))
 
