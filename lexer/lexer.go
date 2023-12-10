@@ -76,7 +76,7 @@ func (lexer *Lexer) readComment() (*language.Token, error) {
 
 	for current := sc.Current(); ; current = sc.Scan() {
 		if current == eof {
-			return nil, sc.Err()
+			break
 		}
 
 		comment.WriteRune(current)
