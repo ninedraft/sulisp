@@ -92,9 +92,15 @@ func (lexer *Lexer) readComment() (*language.Token, error) {
 	}, nil
 }
 
-const escapable = `\"nrts`
-
 var errBadStringLit = errors.New("bad string literal")
+
+var strEscapes = map[[2]rune]rune{
+	{'\\', '\\'}: '\\',
+	{'\\', '"'}:  '"',
+	{'\\', 'r'}:  'r',
+	{'\\', 'n'}:  'n',
+	{'\\', 't'}:  't',
+}
 
 func (lexer *Lexer) readString() (*language.Token, error) {
 	buf := &strings.Builder{}
@@ -103,34 +109,30 @@ func (lexer *Lexer) readString() (*language.Token, error) {
 	// already know that first rune is '"'
 	buf.WriteRune('"')
 
-	const (
-		stateScan = iota
-		stateEscape
-	)
-	var state = stateScan
-
 scan:
-	for {
-		r := sc.Scan()
-
+	for current := sc.Scan(); ; current = sc.Scan() {
+		escaped, isEscape := strEscapes[[2]rune{current, sc.Peek()}]
 		switch {
-		case state == stateScan && r == '\\':
-			state = stateEscape
-			buf.WriteByte('\\')
-		case state == stateEscape && containsRune(escapable, r):
-			state = stateScan
-			buf.WriteRune(r)
-		case state == stateScan && r == '"':
-			buf.WriteRune('"')
+		case current == eof:
+			return nil, errors.Join(errBadStringLit, sc.Err())
+		case current == '"':
+			buf.WriteRune(current)
+			sc.Scan()
 			break scan
-		case state == stateScan:
-			buf.WriteRune(r)
+		case isEscape:
+			buf.WriteRune('\\')
+			buf.WriteRune(escaped)
+			sc.Scan()
+		case current == '\\':
+			return nil, fmt.Errorf("%w: unexpected escaped symbol %q", errBadStringLit, sc.Peek())
+		case current == '\n':
+			buf.WriteString("\\n")
 		default:
-			return nil, lexer.errPos(errBadStringLit)
+			buf.WriteRune(current)
 		}
 	}
 
-	return lexer.newToken(language.TokenStr, buf.String()), nil
+	return lexer.newToken(language.TokenStr, buf.String()), sc.Err()
 }
 
 func (lexer *Lexer) readNumber() (*language.Token, error) {

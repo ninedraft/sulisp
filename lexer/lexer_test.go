@@ -1,7 +1,6 @@
 package lexer_test
 
 import (
-	_ "embed"
 	"strings"
 	"testing"
 
@@ -68,6 +67,57 @@ func TestLex_Numbers(t *testing.T) {
 		assert.EqualValues(t, expect.Kind, got.Kind, "[%d] %s token kind", i, got.Pos)
 		assert.EqualValues(t, expect.Value, got.Value, "[%d] %s token value", got.Pos)
 	}
+}
+
+func TestLex_Strings(t *testing.T) {
+	t.Parallel()
+
+	tokens := readTokens(t, `
+		"string without newline"
+		
+		"string with new
+line"
+
+		"string with e\\scapes\n"
+
+		""
+	`)
+
+	want := []language.Token{
+		{Kind: language.TokenStr, Value: `"string without newline"`},
+		{Kind: language.TokenStr, Value: `"string with new\nline"`},
+		{Kind: language.TokenStr, Value: `"string with e\\scapes\n"`},
+		{Kind: language.TokenStr, Value: `""`},
+	}
+
+	require.Len(t, tokens, len(want), "len(tokens)==len(want)")
+
+	for i, expect := range want {
+		got := tokens[i]
+
+		assert.EqualValues(t, expect.Kind, got.Kind, "[%d] %s token kind", i, got.Pos)
+		assert.EqualValues(t, expect.Value, got.Value, "[%d] %s token value", i, got.Pos)
+	}
+}
+
+func TestLex_Strings_BadEscape(t *testing.T) {
+	t.Parallel()
+
+	lex := lexer.NewLexer(t.Name(), strings.NewReader(`"\g"`))
+
+	_, err := lex.Next()
+
+	assert.Error(t, err)
+}
+
+func TestLex_Strings_UnexpectedEOF(t *testing.T) {
+	t.Parallel()
+
+	lex := lexer.NewLexer(t.Name(), strings.NewReader(`"sasd`))
+
+	_, err := lex.Next()
+
+	assert.Error(t, err)
 }
 
 func readTokens(t *testing.T, input string) []*language.Token {
