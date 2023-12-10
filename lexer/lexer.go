@@ -135,6 +135,7 @@ scan:
 	return lexer.newToken(language.TokenStr, buf.String()), sc.Err()
 }
 
+// can read number or symbols + -
 func (lexer *Lexer) readNumber() (*language.Token, error) {
 	value := &strings.Builder{}
 	sc := lexer.scanner
@@ -146,7 +147,7 @@ func (lexer *Lexer) readNumber() (*language.Token, error) {
 			kind = language.TokenFloat
 		}
 
-		ok := unicode.IsDigit(current) || containsRune("_box,.eE", current)
+		ok := unicode.IsDigit(current) || containsRune("+-_box,.eE", current)
 		if !ok {
 			break
 		}
@@ -154,9 +155,15 @@ func (lexer *Lexer) readNumber() (*language.Token, error) {
 		value.WriteRune(current)
 	}
 
+	v := value.String()
+
+	if v == "+" || v == "-" {
+		kind = language.TokenSymbol
+	}
+
 	return &language.Token{
 		Kind:  kind,
-		Value: value.String(),
+		Value: v,
 	}, nil
 }
 

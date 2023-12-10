@@ -148,6 +148,35 @@ func TestLex_Keyword(t *testing.T) {
 	}
 }
 
+func TestLex_Symbol(t *testing.T) {
+	t.Parallel()
+
+	tokens := readTokens(t, `
+		a, b,
+		c_, d5
+		+ -
+	`)
+
+	want := []language.Token{
+		{Kind: language.TokenSymbol, Value: `a`},
+		{Kind: language.TokenSymbol, Value: `b`},
+		{Kind: language.TokenSymbol, Value: `c_`},
+		{Kind: language.TokenSymbol, Value: `d5`},
+
+		{Kind: language.TokenSymbol, Value: `+`},
+		{Kind: language.TokenSymbol, Value: `-`},
+	}
+
+	require.Len(t, tokens, len(want), "len(tokens)==len(want)")
+
+	for i, expect := range want {
+		got := tokens[i]
+
+		assert.EqualValues(t, expect.Kind, got.Kind, "[%d] %s token kind", i, got.Pos)
+		assert.EqualValues(t, expect.Value, got.Value, "[%d] %s token value", i, got.Pos)
+	}
+}
+
 func readTokens(t *testing.T, input string) []*language.Token {
 	lex := lexer.NewLexer(t.Name(), strings.NewReader(input))
 
