@@ -4,78 +4,92 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 	"unicode"
 
 	"github.com/ninedraft/sulisp/language"
+	scanner "github.com/ninedraft/sulisp/lexer/scanner"
 )
 
-type Lexer struct {
-	File   string
-	Input  io.RuneScanner
-	Tokens []*language.Token
+const eof = scanner.EOF
 
-	pos language.Position
+type Lexer struct {
+	file    string
+	scanner *scanner.Scanner
 }
 
-func (lexer *Lexer) Run() error {
-	for {
-		token, err := lexer.Next()
-		if err != nil {
-			return err
-		}
-		if token == nil {
-			break
-		}
-		lexer.Tokens = append(lexer.Tokens, token)
+func NewLexer(filename string, re io.RuneReader) *Lexer {
+	sc := scanner.New(re)
+	sc.Scan()
+	return &Lexer{
+		file:    filename,
+		scanner: sc,
 	}
-	return nil
+}
+
+func (lexer *Lexer) Next() (*language.Token, error) {
+	tok, err := lexer.next()
+	if err != nil {
+		return nil, lexer.errPos(err)
+	}
+
+	return tok, nil
 }
 
 const brackets = "[](){}"
 
-func (lexer *Lexer) Next() (*language.Token, error) {
-	for {
-		r, _, errRead := lexer.Input.ReadRune()
-		switch {
-		case errors.Is(errRead, io.EOF):
-			return nil, nil
-		case errRead != nil:
-			return nil, lexer.errPos(errRead)
-		}
-		lexer.updatePos(r)
+func (lexer *Lexer) next() (*language.Token, error) {
+	ru := lexer.scanner.Current()
 
-		switch {
-		case unicode.IsSpace(r) || r == ',':
-			continue
-		case r == ';':
-			return lexer.readComment()
-		case r == '\'':
-			return lexer.newToken(language.TokenQuote, "'"), nil
-		case strings.ContainsRune(brackets, r):
-			kind := language.TokenKind(r)
-			return lexer.newToken(kind, kind.String()), nil
-		case r == '"':
-			return lexer.readString()
-		default:
-			return lexer.readAtom(r)
+	// skipping spaces and commas
+	for unicode.IsSpace(ru) || ru == ',' {
+		ru = lexer.scanner.Scan()
+		if ru == eof {
+			return nil, lexer.scanner.Err()
 		}
+	}
+
+	switch {
+	case ru == ';':
+		return lexer.readComment()
+	case ru == '.':
+		return lexer.newToken(language.TokenPoint, "."), nil
+	case ru == '\'':
+		return lexer.newToken(language.TokenQuote, "'"), nil
+	case containsRune(brackets, ru):
+		kind := language.TokenKind(ru)
+		return lexer.newToken(kind, kind.String()), nil
+	case ru == '"':
+		return lexer.readString()
+	case unicode.IsDigit(ru) || ru == '+' || ru == '-':
+		return lexer.readNumber()
+	case ru == ':':
+		return lexer.readAtom(language.TokenKeyword)
+	default:
+		return lexer.readAtom(language.TokenSymbol)
 	}
 }
 
 func (lexer *Lexer) readComment() (*language.Token, error) {
-	comment, _, err := readWhile(lexer.Input, func(ru rune) bool {
-		return ru != '\n'
-	})
-	if err != nil {
-		err = fmt.Errorf("reading comment: %w", err)
-		return nil, lexer.errPos(err)
+	comment := &strings.Builder{}
+	sc := lexer.scanner
+
+	for current := sc.Current(); ; current = sc.Scan() {
+		if current == eof {
+			return nil, sc.Err()
+		}
+
+		comment.WriteRune(current)
+
+		if current == '\n' {
+			break
+		}
 	}
 
-	comment = strings.TrimRightFunc(comment, unicode.IsSpace)
-
-	return lexer.newToken(language.TokenComment, comment), nil
+	return &language.Token{
+		Kind:  language.TokenComment,
+		Value: comment.String(),
+	}, nil
 }
 
 const escapable = `\"nrts`
@@ -84,6 +98,7 @@ var errBadStringLit = errors.New("bad string literal")
 
 func (lexer *Lexer) readString() (*language.Token, error) {
 	buf := &strings.Builder{}
+	sc := lexer.scanner
 
 	// already know that first rune is '"'
 	buf.WriteRune('"')
@@ -96,20 +111,13 @@ func (lexer *Lexer) readString() (*language.Token, error) {
 
 scan:
 	for {
-		r, _, errRead := lexer.Input.ReadRune()
-		switch {
-		case errors.Is(errRead, io.EOF):
-			return nil, nil
-		case errRead != nil:
-			return nil, lexer.errPos(errRead)
-		}
-		lexer.updatePos(r)
+		r := sc.Scan()
 
 		switch {
 		case state == stateScan && r == '\\':
 			state = stateEscape
 			buf.WriteByte('\\')
-		case state == stateEscape && strings.ContainsRune(escapable, r):
+		case state == stateEscape && containsRune(escapable, r):
 			state = stateScan
 			buf.WriteRune(r)
 		case state == stateScan && r == '"':
@@ -125,44 +133,29 @@ scan:
 	return lexer.newToken(language.TokenStr, buf.String()), nil
 }
 
-func isAtomRune(ru rune) bool {
-	if unicode.IsSpace(ru) || strings.ContainsRune(brackets, ru) {
-		return false
+func (lexer *Lexer) readNumber() (*language.Token, error) {
+	value := &strings.Builder{}
+	sc := lexer.scanner
+
+	kind := language.TokenInt
+
+	for current := sc.Current(); ; current = sc.Scan() {
+		if containsRune(",.eE", current) {
+			kind = language.TokenFloat
+		}
+
+		ok := unicode.IsDigit(current) || containsRune("_box,.eE", current)
+		if !ok {
+			break
+		}
+
+		value.WriteRune(current)
 	}
 
-	return unicode.In(ru,
-		unicode.Letter,
-		unicode.Digit,
-		unicode.Mark,
-		unicode.Other,
-		unicode.Symbol,
-		unicode.Punct,
-	)
-}
-
-// keywords + symbols - strings
-// Yes, it's not a canonical atom definition, but it's enough for now.
-func (lexer *Lexer) readAtom(r rune) (*language.Token, error) {
-	atom, _, errAtom := readWhile(lexer.Input, isAtomRune, r)
-	if errAtom != nil {
-		return nil, lexer.errPos(errAtom)
-	}
-
-	if value, ok := strings.CutPrefix(atom, ":"); ok {
-		return lexer.newToken(language.TokenKeyword, value), nil
-	}
-
-	_, errInt := strconv.ParseInt(atom, 10, 64)
-	if errInt == nil {
-		return lexer.newToken(language.TokenInt, atom), nil
-	}
-
-	_, errFloat := strconv.ParseFloat(atom, 64)
-	if errFloat == nil {
-		return lexer.newToken(language.TokenFloat, atom), nil
-	}
-
-	return lexer.newToken(language.TokenSymbol, atom), nil
+	return &language.Token{
+		Kind:  kind,
+		Value: value.String(),
+	}, nil
 }
 
 type Error struct {
@@ -180,20 +173,17 @@ func (err *Error) Unwrap() error {
 
 func (lexer *Lexer) errPos(err error) error {
 	return &Error{
-		Pos: lexer.pos,
+		Pos: lexer.pos(),
 		Err: err,
 	}
 }
 
-func (lexer *Lexer) updatePos(r rune) {
-	if lexer.pos.File == "" {
-		lexer.pos.File = lexer.File
-		lexer.pos.Line = 1
-	}
-	lexer.pos.Column++
-	if r == '\n' {
-		lexer.pos.Line++
-		lexer.pos.Column = 0
+func (lexer *Lexer) pos() language.Position {
+	line, column := lexer.scanner.Pos()
+	return language.Position{
+		Line:   line,
+		Column: column,
+		File:   lexer.file,
 	}
 }
 
@@ -201,28 +191,52 @@ func (lexer *Lexer) newToken(kind language.TokenKind, value string) *language.To
 	return &language.Token{
 		Kind:  kind,
 		Value: value,
-		Pos:   lexer.pos,
+		Pos:   lexer.pos(),
 	}
 }
 
-func readWhile(re io.RuneScanner, fn func(ru rune) bool, prepend ...rune) (_ string, lastUnread rune, _ error) {
-	buf := &strings.Builder{}
-	for _, ru := range prepend {
-		buf.WriteRune(ru)
-	}
+// read
+
+// keywords + symbols - strings
+func (lexer *Lexer) readAtom(kind language.TokenKind) (*language.Token, error) {
+	value := &strings.Builder{}
+	sc := lexer.scanner
+	value.WriteRune(sc.Current())
 
 	for {
-		r, _, errRead := re.ReadRune()
-		switch {
-		case errors.Is(errRead, io.EOF):
-			return buf.String(), 0, nil
-		case errRead != nil:
-			return buf.String(), 0, errRead
+		ru := sc.Scan()
+		if ru == eof {
+			return nil, sc.Err()
 		}
-		if !fn(r) {
-			re.UnreadRune()
-			return buf.String(), r, nil
+
+		if !isAtomRune(ru) {
+			break
 		}
-		buf.WriteRune(r)
+
+		value.WriteRune(ru)
 	}
+
+	return &language.Token{
+		Kind:  kind,
+		Value: value.String(),
+	}, sc.Err()
+}
+
+func isAtomRune(ru rune) bool {
+	if unicode.IsSpace(ru) || containsRune(brackets, ru) || ru == '.' {
+		return false
+	}
+
+	return unicode.In(ru,
+		unicode.Letter,
+		unicode.Digit,
+		unicode.Mark,
+		unicode.Other,
+		unicode.Symbol,
+		unicode.Punct,
+	)
+}
+
+func containsRune(rr string, ru rune) bool {
+	return strings.ContainsRune(rr, ru)
 }

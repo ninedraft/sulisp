@@ -21,7 +21,7 @@ type Token struct {
 }
 
 func (t *Token) String() string {
-	return t.Kind.String() + " " + t.Value
+	return "<" + t.Kind.String() + " " + t.Value + ">"
 }
 
 //go:generate stringer -type TokenKind -linecomment
@@ -45,6 +45,8 @@ const (
 	TokenRCurl = TokenKind('}') // }
 
 	TokenQuote = TokenKind('\'') // '
+
+	TokenPoint = TokenKind('.') // .
 
 	TokenSymbol  TokenKind = iota + 100 // symbol
 	TokenKeyword                        // :keyword

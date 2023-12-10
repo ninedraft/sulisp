@@ -8,147 +8,83 @@ import (
 	"github.com/ninedraft/sulisp/language"
 	"github.com/ninedraft/sulisp/lexer"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestLexer_FuncSignature(t *testing.T) {
+func TestLex_Comment(t *testing.T) {
 	t.Parallel()
-	t.Log(
-		"Testing lexer for function signature",
-	)
 
-	const input = `(x :- int => int)`
+	input := strings.NewReader(`
+	; comment ending with newline
+	; comment ending with semicolon
+	;
+	`)
 
-	lex := &lexer.Lexer{
-		File:  t.Name(),
-		Input: strings.NewReader(input),
-	}
+	lex := lexer.NewLexer(t.Name(), input)
 
-	if err := lex.Run(); err != nil {
-		t.Fatal("lexing input", err)
-	}
+	comments := []string{}
 
-	assert := func(i int, kind language.TokenKind, value string) {
-		t.Helper()
-		tok := lex.Tokens[i]
-		if tok.Kind != kind {
-			t.Errorf("unexpected token kind at %d: got %s (%q), expected %s", i, tok.Kind, tok.Value, kind)
+	for {
+		tok, errTok := lex.Next()
+		if tok == nil {
+			break
 		}
-		if tok.Value != value {
-			t.Errorf("unexpected token value at %d: got %s, expected %s", i, tok.Value, value)
+
+		require.NoError(t, errTok, "lexer error")
+		require.Equal(t, language.TokenComment, tok.Kind, "tok: %v", tok)
+
+		comments = append(comments, tok.Value)
+	}
+
+	require.ElementsMatch(t, []string{
+		"; comment ending with newline\n",
+		"; comment ending with semicolon\n",
+		";\n",
+	}, comments, "got comments")
+}
+
+func TestLex_Numbers(t *testing.T) {
+	t.Parallel()
+
+	tokens := readTokens(t, `
+		1 2
+		3.5 1e1
+	`)
+
+	t.Log(tokens)
+
+	want := []language.Token{
+		{Kind: language.TokenInt, Value: "1"},
+		{Kind: language.TokenInt, Value: "2"},
+		{Kind: language.TokenFloat, Value: "3.5"},
+		{Kind: language.TokenFloat, Value: "1e1"},
+	}
+
+	require.Len(t, tokens, len(want), "len(tokens)==len(want)")
+
+	for i, expect := range want {
+		got := tokens[i]
+
+		assert.EqualValues(t, expect.Kind, got.Kind, "[%d] %s token kind", i, got.Pos)
+		assert.EqualValues(t, expect.Value, got.Value, "[%d] %s token value", got.Pos)
+	}
+}
+
+func readTokens(t *testing.T, input string) []*language.Token {
+	lex := lexer.NewLexer(t.Name(), strings.NewReader(input))
+
+	tokens := []*language.Token{}
+
+	for {
+		tok, errTok := lex.Next()
+		if tok == nil {
+			break
 		}
+
+		require.NoError(t, errTok, "lexer error")
+
+		tokens = append(tokens, tok)
 	}
 
-	if len(lex.Tokens) != 7 {
-		t.Errorf("unexpected number of tokens: got %d, expected %d", len(lex.Tokens), 7)
-	}
-
-	assert(0, language.TokenLBrace, "(")
-	assert(1, language.TokenSymbol, "x")
-	assert(2, language.TokenKeyword, "-")
-	assert(3, language.TokenSymbol, "int")
-	assert(4, language.TokenSymbol, "=>")
-	assert(5, language.TokenSymbol, "int")
-	assert(6, language.TokenRBrace, ")")
-}
-
-func TestLexer_S(t *testing.T) {
-	t.Parallel()
-
-	tokens := lexString(t, `(>=)`)
-
-	tok := tokens[1]
-	if tok.Value != ">=" {
-		t.Errorf("unexpected token value: got %s, expected %s", tok.Value, ">=")
-	}
-}
-
-func TestLexer_Comments(t *testing.T) {
-	t.Parallel()
-	t.Log(`
-		Comments have following format:
-		
-		; comment \n
-
-		Last space character is not included in comment value.
-	`)
-
-	tokens := lexString(t, `
-		; 1
-		a
-		b ; 2`)
-
-	assert.Equal(t, language.TokenComment, tokens[0].Kind)
-	assert.Equal(t, " 1", tokens[0].Value)
-
-	assert.Equal(t, language.TokenComment, tokens[3].Kind)
-	assert.Equal(t, " 2", tokens[3].Value)
-}
-
-func TestLexer_Atoms(t *testing.T) {
-	t.Parallel()
-	t.Log(`
-		Atoms are sequences of characters that are not
-		whitespace, brackets, quotes or semicolons or '
-	`)
-
-	tokens := lexString(t, `
-		 symbol
-		"string"
-		123 
-		1.23 
-		:keyword
-		1symbol
-		-1symbol'
-		+1symbol
-	`)
-
-	assert.Equal(t, language.TokenSymbol.Of("symbol"), tokens[0])
-	assert.Equal(t, language.TokenStr.Of(`"string"`), tokens[1])
-	assert.Equal(t, language.TokenInt.Of("123"), tokens[2])
-	assert.Equal(t, language.TokenFloat.Of("1.23"), tokens[3])
-	assert.Equal(t, language.TokenKeyword.Of("keyword"), tokens[4])
-	assert.Equal(t, language.TokenSymbol.Of("1symbol"), tokens[5])
-	assert.Equal(t, language.TokenSymbol.Of("-1symbol'"), tokens[6])
-	assert.Equal(t, language.TokenSymbol.Of("+1symbol"), tokens[7])
-}
-
-func TestLexer_Strings(t *testing.T) {
-	t.Parallel()
-	t.Log(`
-		Strings are sequences of characters enclosed in double quotes.
-		They can contain any characters except double quote.
-		To include double quote in string, use \"
-	`)
-
-	tokens := lexString(t, `
-		"string"
-		"string with \""
-		"multi
-line"
-	`)
-
-	assert.Equal(t, language.TokenStr.Of(`"string"`), tokens[0])
-	assert.Equal(t, language.TokenStr.Of(`"string with \""`), tokens[1])
-	assert.Equal(t, language.TokenStr.Of(`"multi`+"\n"+`line"`), tokens[2])
-}
-
-func lexString(t *testing.T, input string) []*language.Token {
-	l := &lexer.Lexer{
-		File:  t.Name(),
-		Input: strings.NewReader(input),
-	}
-
-	if err := l.Run(); err != nil {
-		t.Fatalf("lexer.Run() failed: %v", err)
-	}
-
-	cleanPos(l.Tokens)
-
-	return l.Tokens
-}
-
-func cleanPos(tokens []*language.Token) {
-	for _, tok := range tokens {
-		tok.Pos = language.Position{}
-	}
+	return tokens
 }
