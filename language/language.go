@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"unsafe"
+
+	. "github.com/ninedraft/sulisp/language/tokens"
 )
 
 type Expression interface {

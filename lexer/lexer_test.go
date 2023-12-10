@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ninedraft/sulisp/language"
+	language "github.com/ninedraft/sulisp/language/tokens"
 	"github.com/ninedraft/sulisp/lexer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

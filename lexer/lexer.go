@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/ninedraft/sulisp/language"
+	language "github.com/ninedraft/sulisp/language/tokens"
 	scanner "github.com/ninedraft/sulisp/lexer/scanner"
 )
 
