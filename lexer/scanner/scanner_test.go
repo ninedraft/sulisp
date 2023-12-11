@@ -17,13 +17,13 @@ func TestScanner(t *testing.T) {
 	sc := scanner.New(strings.NewReader(input))
 
 	got := &strings.Builder{}
+	got.WriteRune(sc.Current())
+
 	for {
 		ru := sc.Scan()
 		if ru == scanner.EOF {
 			break
 		}
-
-		t.Logf("%q", ru)
 
 		got.WriteRune(ru)
 	}
@@ -48,16 +48,17 @@ func TestScanner_Error(t *testing.T) {
 	sc := scanner.New(bufio.NewReader(in))
 
 	got := &strings.Builder{}
+	got.WriteRune(sc.Current())
 	for {
 		ru := sc.Scan()
 		if ru == scanner.EOF {
 			break
 		}
 
-		t.Logf("%q", ru)
-
 		got.WriteRune(ru)
 	}
+
+	t.Logf("got: %x", got.String())
 
 	assert.Equal(t, want, got.String(), "scanned")
 	assert.ErrorIs(t, sc.Err(), errTest, "got error")
