@@ -20,7 +20,6 @@ type Lexer struct {
 
 func NewLexer(filename string, re io.RuneReader) *Lexer {
 	sc := scanner.New(re)
-	sc.Scan()
 	return &Lexer{
 		file:    filename,
 		scanner: sc,
@@ -38,7 +37,7 @@ func (lexer *Lexer) Next() (*language.Token, error) {
 
 const brackets = "[](){}"
 
-func (lexer *Lexer) next() (*language.Token, error) {
+func (lexer *Lexer) next() (scanned *language.Token, _ error) {
 	ru := lexer.scanner.Current()
 
 	// skipping spaces and commas
@@ -53,12 +52,18 @@ func (lexer *Lexer) next() (*language.Token, error) {
 	case ru == ';':
 		return lexer.readComment()
 	case ru == '.':
-		return lexer.newToken(language.TokenPoint, "."), nil
+		tok := lexer.newToken(language.TokenPoint, ".")
+		lexer.scanner.Scan()
+		return tok, nil
 	case ru == '\'':
-		return lexer.newToken(language.TokenQuote, "'"), nil
+		tok := lexer.newToken(language.TokenQuote, "'")
+		lexer.scanner.Scan()
+		return tok, nil
 	case containsRune(brackets, ru):
 		kind := language.TokenKind(ru)
-		return lexer.newToken(kind, kind.String()), nil
+		tok := lexer.newToken(kind, kind.String())
+		lexer.scanner.Scan()
+		return tok, nil
 	case ru == '"':
 		return lexer.readString()
 	case unicode.IsDigit(ru) || ru == '+' || ru == '-':
@@ -86,10 +91,7 @@ func (lexer *Lexer) readComment() (*language.Token, error) {
 		}
 	}
 
-	return &language.Token{
-		Kind:  language.TokenComment,
-		Value: comment.String(),
-	}, nil
+	return lexer.newToken(language.TokenComment, comment.String()), nil
 }
 
 var errBadStringLit = errors.New("bad string literal")
@@ -161,10 +163,7 @@ func (lexer *Lexer) readNumber() (*language.Token, error) {
 		kind = language.TokenSymbol
 	}
 
-	return &language.Token{
-		Kind:  kind,
-		Value: v,
-	}, nil
+	return lexer.newToken(kind, v), nil
 }
 
 type Error struct {
@@ -225,10 +224,7 @@ func (lexer *Lexer) readAtom(kind language.TokenKind) (*language.Token, error) {
 		value.WriteRune(ru)
 	}
 
-	return &language.Token{
-		Kind:  kind,
-		Value: value.String(),
-	}, sc.Err()
+	return lexer.newToken(kind, value.String()), sc.Err()
 }
 
 func isAtomRune(ru rune) bool {
@@ -249,3 +245,5 @@ func isAtomRune(ru rune) bool {
 func containsRune(rr string, ru rune) bool {
 	return strings.ContainsRune(rr, ru)
 }
+
+func dbg(...any) {}
