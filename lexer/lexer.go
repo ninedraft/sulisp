@@ -43,12 +43,13 @@ func (lexer *Lexer) next() (scanned *language.Token, _ error) {
 	// skipping spaces and commas
 	for unicode.IsSpace(ru) || ru == ',' {
 		ru = lexer.scanner.Scan()
-		if ru == eof {
-			return nil, lexer.scanner.Err()
-		}
 	}
 
 	switch {
+	case ru == eof:
+		tok := lexer.newToken(language.TokenEOF, "")
+		lexer.scanner.Scan()
+		return tok, lexer.scanner.Err()
 	case ru == ';':
 		return lexer.readComment()
 	case ru == '.':
@@ -80,15 +81,11 @@ func (lexer *Lexer) readComment() (*language.Token, error) {
 	sc := lexer.scanner
 
 	for current := sc.Current(); ; current = sc.Scan() {
-		if current == eof {
+		if strings.ContainsRune("\x00\n", current) {
 			break
 		}
 
 		comment.WriteRune(current)
-
-		if current == '\n' {
-			break
-		}
 	}
 
 	return lexer.newToken(language.TokenComment, comment.String()), nil

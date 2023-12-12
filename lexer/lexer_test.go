@@ -13,33 +13,26 @@ import (
 func TestLex_Comment(t *testing.T) {
 	t.Parallel()
 
-	input := strings.NewReader(`
+	tokens := readTokens(t, `
 	; comment ending with newline
 	; comment ending with semicolon
 	;
 	`)
 
-	lex := lexer.NewLexer(t.Name(), input)
-
-	comments := []string{}
-
-	for {
-		tok, errTok := lex.Next()
-		if tok == nil {
-			break
-		}
-
-		require.NoError(t, errTok, "lexer error")
-		require.Equal(t, language.TokenComment, tok.Kind, "tok: %v", tok)
-
-		comments = append(comments, tok.Value)
+	want := []language.Token{
+		{Kind: language.TokenComment, Value: "; comment ending with newline"},
+		{Kind: language.TokenComment, Value: "; comment ending with semicolon"},
+		{Kind: language.TokenComment, Value: ";"},
 	}
 
-	require.ElementsMatch(t, []string{
-		"; comment ending with newline\n",
-		"; comment ending with semicolon\n",
-		";\n",
-	}, comments, "got comments")
+	require.Len(t, tokens, len(want), "len(tokens)==len(want)")
+
+	for i, expect := range want {
+		got := tokens[i]
+
+		assert.EqualValues(t, expect.Kind, got.Kind, "[%d] %s token kind", i, got.Pos)
+		assert.EqualValues(t, expect.Value, got.Value, "[%d] %s token value", i, got.Pos)
+	}
 }
 
 func TestLex_Numbers(t *testing.T) {
@@ -49,8 +42,6 @@ func TestLex_Numbers(t *testing.T) {
 		1 2
 		3.5 1e1
 	`)
-
-	t.Log(tokens)
 
 	want := []language.Token{
 		{Kind: language.TokenInt, Value: "1"},
@@ -205,7 +196,7 @@ func readTokens(t *testing.T, input string) []*language.Token {
 
 	for {
 		tok, errTok := lex.Next()
-		if tok == nil {
+		if tok == nil || tok.Kind == language.TokenEOF {
 			break
 		}
 
