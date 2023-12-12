@@ -8,20 +8,22 @@ func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
 	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
-	_ = x[TokenLBrace-40]
-	_ = x[TokenRBrace-41]
+	_ = x[TokenLParen-40]
+	_ = x[TokenRParen-41]
 	_ = x[TokenLBrack-91]
 	_ = x[TokenRBrack-93]
-	_ = x[TokenLCurl-123]
-	_ = x[TokenRCurl-125]
+	_ = x[TokenLBrace-123]
+	_ = x[TokenRBrace-125]
 	_ = x[TokenQuote-39]
 	_ = x[TokenPoint-46]
-	_ = x[TokenSymbol-108]
-	_ = x[TokenKeyword-109]
-	_ = x[TokenInt-110]
-	_ = x[TokenFloat-111]
-	_ = x[TokenStr-112]
-	_ = x[TokenComment-113]
+	_ = x[TokenSymbol-109]
+	_ = x[TokenKeyword-110]
+	_ = x[TokenInt-111]
+	_ = x[TokenFloat-112]
+	_ = x[TokenStr-113]
+	_ = x[TokenComment-114]
+	_ = x[TokenEOF-115]
+	_ = x[TokenMalformed-116]
 }
 
 const (
@@ -29,14 +31,14 @@ const (
 	_TokenKind_name_1 = "."
 	_TokenKind_name_2 = "["
 	_TokenKind_name_3 = "]"
-	_TokenKind_name_4 = "symbol:keywordintegerfloatstring; comment"
+	_TokenKind_name_4 = "symbol:keywordintegerfloatstring; comment<eof>malformed"
 	_TokenKind_name_5 = "{"
 	_TokenKind_name_6 = "}"
 )
 
 var (
 	_TokenKind_index_0 = [...]uint8{0, 1, 2, 3}
-	_TokenKind_index_4 = [...]uint8{0, 6, 14, 21, 26, 32, 41}
+	_TokenKind_index_4 = [...]uint8{0, 6, 14, 21, 26, 32, 41, 46, 55}
 )
 
 func (i TokenKind) String() string {
@@ -50,8 +52,8 @@ func (i TokenKind) String() string {
 		return _TokenKind_name_2
 	case i == 93:
 		return _TokenKind_name_3
-	case 108 <= i && i <= 113:
-		i -= 108
+	case 109 <= i && i <= 116:
+		i -= 109
 		return _TokenKind_name_4[_TokenKind_index_4[i]:_TokenKind_index_4[i+1]]
 	case i == 123:
 		return _TokenKind_name_5

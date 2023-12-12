@@ -35,14 +35,16 @@ func (kind TokenKind) Of(value string) *Token {
 }
 
 const (
-	TokenLBrace = TokenKind('(') // (
-	TokenRBrace = TokenKind(')') // )
+	TokenUndefined = 0 // <undefined>
+
+	TokenLParen = TokenKind('(') // (
+	TokenRParen = TokenKind(')') // )
 
 	TokenLBrack = TokenKind('[') // [
 	TokenRBrack = TokenKind(']') // ]
 
-	TokenLCurl = TokenKind('{') // {
-	TokenRCurl = TokenKind('}') // }
+	TokenLBrace = TokenKind('{') // {
+	TokenRBrace = TokenKind('}') // }
 
 	TokenQuote = TokenKind('\'') // '
 
@@ -55,21 +57,24 @@ const (
 	TokenFloat   // float
 	TokenStr     // string
 	TokenComment // ; comment
+
+	TokenEOF       // <eof>
+	TokenMalformed // malformed
 )
 
 func (tk TokenKind) GoString() string {
 	switch tk {
-	case TokenLBrace:
+	case TokenLParen:
 		return "language.TokenLBrace"
-	case TokenRBrace:
+	case TokenRParen:
 		return "language.TokenRBrace"
 	case TokenLBrack:
 		return "language.TokenLBrack"
 	case TokenRBrack:
 		return "language.TokenRBrack"
-	case TokenLCurl:
+	case TokenLBrace:
 		return "language.TokenLCurl"
-	case TokenRCurl:
+	case TokenRBrace:
 		return "language.TokenRCurl"
 	case TokenQuote:
 		return "language.TokenQuote"
