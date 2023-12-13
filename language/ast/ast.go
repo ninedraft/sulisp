@@ -47,17 +47,20 @@ func (lit *Literal[E]) Equal(other Node) bool {
 	return lit.Value == o.Value
 }
 
-func (lit *Literal[L]) Name() string {
-	switch any(lit.Value).(type) {
+func (*Literal[L]) Name() string {
+	var v L
+	switch any(v).(type) {
 	case string:
 		return "string"
 	case int64:
 		return "int"
 	case float64:
 		return "float"
+	case bool:
+		return "bool"
 	}
 
-	return tokens.TokenMalformed.String()
+	return fmt.Sprintf("literal[%T]", v)
 }
 
 func (lit *Literal[L]) String() string {
@@ -202,48 +205,6 @@ func (sexp *SExp) Clone() Node {
 	clone.Items = cloneSlice(sexp.Items)
 
 	return &clone
-}
-
-type True struct {
-	PosRange
-}
-
-func (t *True) Equal(other Node) bool {
-	if t == nil {
-		return other == nil
-	}
-
-	_, ok := other.(*True)
-	return ok
-}
-
-func (*True) Name() string { return "true" }
-
-func (*True) String() string { return "true" }
-
-func (t *True) Clone() Node {
-	return shallow(t)
-}
-
-type False struct {
-	PosRange
-}
-
-func (*False) Name() string { return "false" }
-
-func (*False) String() string { return "false" }
-
-func (f *False) Equal(other Node) bool {
-	if f == nil {
-		return other == nil
-	}
-
-	_, ok := other.(*False)
-	return ok
-}
-
-func (f *False) Clone() Node {
-	return shallow(f)
 }
 
 func Clone[E Node](node E) E {
