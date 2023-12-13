@@ -12,7 +12,7 @@ import (
 type Node interface {
 	fmt.Stringer
 	Equal(other Node) bool
-	Tok() tokens.TokenKind
+	Name() string
 	Pos() PosRange
 	Clone() Node
 }
@@ -47,17 +47,17 @@ func (lit *Literal[E]) Equal(other Node) bool {
 	return lit.Value == o.Value
 }
 
-func (lit *Literal[L]) Tok() tokens.TokenKind {
+func (lit *Literal[L]) Name() string {
 	switch any(lit.Value).(type) {
 	case string:
-		return tokens.TokenStr
+		return "string"
 	case int64:
-		return tokens.TokenInt
+		return "int"
 	case float64:
-		return tokens.TokenFloat
+		return "float"
 	}
 
-	return tokens.TokenMalformed
+	return tokens.TokenMalformed.String()
 }
 
 func (lit *Literal[L]) String() string {
@@ -78,15 +78,15 @@ func (pkg *Package) Equal(other Node) bool {
 		return other == nil
 	}
 
-	if o, ok := other.(*Package); ok {
+	if o, _ := other.(*Package); o != nil {
 		return equalSlices(pkg.Nodes, o.Nodes)
 	}
 
 	return false
 }
 
-func (*Package) Tok() tokens.TokenKind {
-	return tokens.TokenLParen
+func (*Package) Name() string {
+	return "package"
 }
 
 func (pkg *Package) String() string {
@@ -112,18 +112,18 @@ type Symbol struct {
 }
 
 func (sym *Symbol) Equal(node Node) bool {
-	if node == nil {
+	if sym == nil {
 		return node == nil
 	}
 
-	if o, ok := node.(*Symbol); ok {
+	if o, _ := node.(*Symbol); o != nil {
 		return sym.Value == o.Value
 	}
 
 	return false
 }
 
-func (*Symbol) Tok() tokens.TokenKind { return tokens.TokenSymbol }
+func (*Symbol) Name() string { return tokens.TokenSymbol.String() }
 
 func (sym *Symbol) String() string { return sym.Value }
 
@@ -141,14 +141,14 @@ func (kw *Keyword) Equal(node Node) bool {
 		return node == nil
 	}
 
-	if o, ok := node.(*Keyword); ok {
+	if o, _ := node.(*Keyword); o != nil {
 		return kw.Value == o.Value
 	}
 
 	return false
 }
 
-func (*Keyword) Tok() tokens.TokenKind { return tokens.TokenKeyword }
+func (*Keyword) Name() string { return tokens.TokenKeyword.String() }
 
 func (kw *Keyword) String() string { return kw.Value }
 
@@ -167,8 +167,8 @@ func NewSexp(items ...Node) *SExp {
 	}
 }
 
-func (sexp *SExp) Tok() tokens.TokenKind {
-	return tokens.TokenLParen
+func (sexp *SExp) Name() string {
+	return "s-expr"
 }
 
 func (sexp *SExp) String() string {
@@ -186,7 +186,7 @@ func (sexp *SExp) Equal(other Node) bool {
 		return other == nil
 	}
 
-	if o, ok := other.(*SExp); ok {
+	if o, _ := other.(*SExp); o != nil {
 		return equalSlices(sexp.Items, o.Items)
 	}
 
@@ -217,7 +217,7 @@ func (t *True) Equal(other Node) bool {
 	return ok
 }
 
-func (*True) Tok() tokens.TokenKind { return tokens.TokenSymbol }
+func (*True) Name() string { return "true" }
 
 func (*True) String() string { return "true" }
 
@@ -229,7 +229,7 @@ type False struct {
 	PosRange
 }
 
-func (*False) Tok() tokens.TokenKind { return tokens.TokenSymbol }
+func (*False) Name() string { return "false" }
 
 func (*False) String() string { return "false" }
 

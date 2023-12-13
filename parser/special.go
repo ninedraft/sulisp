@@ -42,67 +42,65 @@ func (parser *Parser) buildSpecial(sexp *ast.SExp) ast.Node {
 }
 
 func (parser *Parser) buildIf(sexp *ast.SExp) *ast.If {
-	if len(sexp.Items) < 2 || len(sexp.Items) > 4 {
-		parser.errorf("if form must have 2 or 3 items")
+	var head *ast.Symbol // 'if or 'cond
+	var cond ast.Node
+	var then_ ast.Node
+	var else_ ast.Node // optional
+
+	errMatch := sexpMatch(sexp, p(&head),
+		p(&cond),
+		p(&then_),
+		pOpt(&else_),
+	)
+
+	if errMatch != nil {
+		parser.errorf("invalid if form: %w", errMatch)
 		return nil
 	}
 
-	head := sexp.Items[0].(*ast.Symbol)
-	if head.Value == "cond" && len(sexp.Items) > 3 {
-		parser.errorf("cond form must have at most 2 items")
+	if head.Value == "cond" && else_ != nil {
+		parser.errorf("cond form must not have else branch")
 		return nil
 	}
 
-	ifForm := &ast.If{
+	return &ast.If{
 		PosRange: parser.posRange(),
-		Cond:     sexp.Items[1],
-		Then:     sexp.Items[2],
+		Cond:     cond,
+		Then:     then_,
+		Else:     else_,
 	}
-
-	if len(sexp.Items) > 3 {
-		ifForm.Else = sexp.Items[3]
-	}
-
-	return ifForm
 }
 
-func (parser *Parser) buildImportGo(sexp *ast.SExp) *ast.ImportGo {
-	if len(sexp.Items) == 1 {
-		parser.errorf("empty import-go")
-		return nil
-	}
+var matchImportGoItem = pOr(
+	pMatch[*ast.Literal[string]](),
+	pMatch[*ast.Symbol](),
+	matchImportGoAliasItem,
+)
 
+var matchImportGoAliasItem = pSexp(
+	pMatch[*ast.Symbol](),
+	pOr(
+		pMatch[*ast.Literal[string]](),
+		pMatch[*ast.Symbol](),
+	),
+)
+
+func (parser *Parser) buildImportGo(sexp *ast.SExp) *ast.ImportGo {
 	importgo := &ast.ImportGo{
 		PosRange: parser.posRange(),
 	}
 
-	validateAliasItem := func(item *ast.SExp) bool {
-		// (alias string) or (alias symbol)
-
-		alias := pMatch[*ast.Symbol]()
-
-		ref := pOr(
-			pMatch[*ast.Literal[string]](),
-			pMatch[*ast.Symbol](),
-		)
-
-		return sexpMatch(item, alias, ref)
+	if len(sexp.Items) == 1 {
+		return importgo
 	}
 
 	for i, item := range sexp.Items[1:] {
-		switch item := item.(type) {
-		case *ast.Literal[string], *ast.Symbol:
-			importgo.Items = append(importgo.Items, item)
-		case *ast.SExp:
-			if !validateAliasItem(item) {
-				parser.errorf("unexpected import-go item %d: %s", i+1, item.Tok())
-				return nil
-			}
-			importgo.Items = append(importgo.Items, item)
-		default:
-			parser.errorf("unexpected import-go item: %s", item.Tok())
+		err := matchImportGoItem(item)
+		if err != nil {
+			parser.errorf("import-go item %d: %w", i+1, err)
 			return nil
 		}
+		importgo.Items = append(importgo.Items, item)
 	}
 
 	return importgo

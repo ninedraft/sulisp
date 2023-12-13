@@ -2,8 +2,6 @@ package ast
 
 import (
 	"strings"
-
-	"github.com/ninedraft/sulisp/language/tokens"
 )
 
 type ImportGo struct {
@@ -11,8 +9,8 @@ type ImportGo struct {
 	Items []Node // string | symbol | (symbol string)
 }
 
-func (importgo *ImportGo) Tok() tokens.TokenKind {
-	return tokens.TokenSymbol
+func (importgo *ImportGo) Name() string {
+	return "import-go"
 }
 
 func (importgo *ImportGo) Equal(other Node) bool {
@@ -58,7 +56,7 @@ type If struct {
 	Else       Node // optional
 }
 
-func (*If) Tok() tokens.TokenKind { return tokens.TokenSymbol }
+func (*If) Name() string { return "if" }
 
 func (if_ *If) Equal(other Node) bool {
 	if if_ == nil {
@@ -114,8 +112,8 @@ type SpecialOp struct {
 	Items []Node
 }
 
-func (special *SpecialOp) Tok() tokens.TokenKind {
-	return tokens.TokenSymbol
+func (special *SpecialOp) Name() string {
+	return special.Op
 }
 
 func (special *SpecialOp) Equal(other Node) bool {
