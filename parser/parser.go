@@ -1,155 +1,300 @@
+// Package parser is Pratt top-down parser for a lispy language.
 package parser
 
 import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
-	"strings"
 
-	"github.com/ninedraft/sulisp/language"
+	"github.com/ninedraft/sulisp/language/ast"
+	"github.com/ninedraft/sulisp/language/tokens"
 )
 
 type Parser struct {
-	Tokens []*language.Token
-	i      int
+	lexer Lexer
+
+	errs      []error
+	cur, next *tokens.Token
 }
 
-var ErrUnexpectedToken = errors.New("unexpected token")
+func New(lexer Lexer) *Parser {
+	parser := &Parser{
+		lexer: lexer,
+	}
 
-// sexp -> '(' exp* ')'
-// expr -> sexp | atom
-// atom -> number | symbol | string | keyword | boolean
-func (parser *Parser) Parse() ([]language.Sexp, error) {
-	root := []language.Sexp{}
-	for {
-		sexp, err := parser.readSexp()
-		switch {
-		case errors.Is(err, io.EOF):
-			return root, nil
-		case err != nil:
-			return nil, err
+	parser.nextTok()
+	parser.nextTok()
+
+	return parser
+}
+
+type Lexer interface {
+	Next() (*tokens.Token, error)
+}
+
+func (parser *Parser) Parse() (*ast.Package, error) {
+	pkg := &ast.Package{}
+
+	for len(parser.errs) == 0 && !parser.curIs(tokens.TokenEOF) {
+		item := parser.parseNode()
+		if item == nil {
+			continue
 		}
 
-		root = append(root, sexp)
+		pkg.Nodes = append(pkg.Nodes, item)
+
+		parser.nextTok()
 	}
+
+	return pkg, errors.Join(parser.errs...)
 }
 
-const quote = language.Symbol("quote")
-
-func (parser *Parser) readExpr() (language.Expression, error) {
-	tok, ok := parser.next()
-	if !ok {
-		return nil, io.EOF
-	}
-	switch tok.Kind {
-	case language.TokenLBrace:
-		parser.unread()
-		return parser.readSexp()
-	case language.TokenInt:
-		return parseInt(tok)
-	case language.TokenFloat:
-		return parseFloat(tok)
-	case language.TokenStr:
-		return parseString(tok)
-	case language.TokenSymbol:
-		return language.Symbol(tok.Value), nil
-	case language.TokenKeyword:
-		return language.Keyword(tok.Value), nil
-	case language.TokenQuote:
-		return parser.readQuote()
-	}
-	return nil, fmt.Errorf("%s: %w %s", tok.Pos, ErrUnexpectedToken, tok.Kind)
-}
-
-func parseInt(tok *language.Token) (*language.Literal[int64], error) {
-	var x int64
-	var err error
-	switch {
-	case strings.HasPrefix(tok.Value, "0x"):
-		x, err = strconv.ParseInt(tok.Value, 16, 64)
-	case strings.HasPrefix(tok.Value, "0o"):
-		x, err = strconv.ParseInt(tok.Value, 8, 64)
-	case strings.HasPrefix(tok.Value, "0b"):
-		x, err = strconv.ParseInt(tok.Value, 2, 64)
+func (parser *Parser) parseNode() ast.Node {
+	switch parser.cur.Kind {
+	case tokens.TokenLParen:
+		return parser.parseApply()
+	case tokens.TokenSymbol, tokens.TokenKeyword, tokens.TokenPoint:
+		return parser.parseAtomOrDot()
+	case tokens.TokenInt, tokens.TokenFloat, tokens.TokenStr:
+		return parser.parseLiteral()
 	default:
-		x, err = strconv.ParseInt(tok.Value, 10, 64)
+		parser.errorf("unexpected token: %s", parser.cur)
+		return nil
 	}
-
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", tok.Pos, err)
-	}
-
-	return &language.Literal[int64]{Value: x}, nil
 }
 
-func parseFloat(tok *language.Token) (*language.Literal[float64], error) {
-	x, err := strconv.ParseFloat(tok.Value, 64)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", tok.Pos, err)
-	}
-	return &language.Literal[float64]{Value: x}, nil
+var defaultAtoms = []tokens.TokenKind{
+	tokens.TokenSymbol,
+	tokens.TokenKeyword,
+	tokens.TokenPoint,
 }
 
-func parseString(tok *language.Token) (*language.Literal[string], error) {
-	val, err := strconv.Unquote(tok.Value)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", tok.Pos, err)
+func (parser *Parser) parseAtomOrDot(expect ...tokens.TokenKind) ast.Node {
+	if len(expect) == 0 {
+		expect = defaultAtoms
 	}
-	return &language.Literal[string]{Value: val}, nil
+
+	if !parser.expectCurrentKind(expect...) {
+		return nil
+	}
+
+	var node ast.Node
+
+	switch parser.cur.Kind {
+	case tokens.TokenSymbol, tokens.TokenPoint:
+		node = &ast.Symbol{PosRange: parser.posRange(), Value: parser.cur.Value}
+	case tokens.TokenKeyword:
+		node = &ast.Keyword{PosRange: parser.posRange(), Value: parser.cur.Value}
+	default:
+		parser.errorf("unexpected token: %s", parser.cur)
+		return nil
+	}
+
+	return node
 }
 
-func (parser *Parser) readSexp() (language.Sexp, error) {
-	exps := []language.Expression{}
-	head, ok := parser.next()
-	if !ok {
-		return nil, io.EOF
+func (parser *Parser) parseLiteral() ast.Node {
+	if !parser.expectCurrentKind(tokens.TokenInt, tokens.TokenFloat, tokens.TokenStr) {
+		return nil
 	}
 
-	if head.Kind != language.TokenLBrace {
-		return nil, fmt.Errorf("%s: %w %s", head.Pos, ErrUnexpectedToken, head.Kind)
+	var parsed ast.Node
+	pos := parser.posRange()
+	var errParse error
+
+	value := parser.cur.Value
+	switch parser.cur.Kind {
+	case tokens.TokenInt:
+		x, err := strconv.ParseInt(value, 0, 64)
+		errParse = err
+		parsed = &ast.Literal[int64]{PosRange: pos, Value: x}
+
+	case tokens.TokenFloat:
+		x, err := strconv.ParseFloat(value, 64)
+		errParse = err
+		parsed = &ast.Literal[float64]{PosRange: pos, Value: x}
+
+	case tokens.TokenStr:
+		parsed = &ast.Literal[string]{PosRange: pos, Value: value}
 	}
 
-	for {
-		tok, ok := parser.next()
-		if !ok {
-			return nil, io.EOF
+	if errParse != nil {
+		parser.errorf("cannot parse literal %s: %s", parser.cur, errParse)
+		return nil
+	}
+
+	return parsed
+}
+
+// can return special forms
+func (parser *Parser) parseApply() ast.Node {
+	sexp := parser.parseSexp()
+	if sexp == nil || len(sexp.Items) == 0 {
+		return sexp
+	}
+
+	head := sexp.Items[0]
+
+	symbol, _ := head.(*ast.Symbol)
+	if symbol == nil {
+		// not a special form
+		return sexp
+	}
+
+	switch symbol.Value {
+	case "import-go":
+		return parser.buildImportGo(sexp)
+	}
+
+	return sexp
+}
+
+func (parser *Parser) parseSexp() *ast.SExp {
+	if !parser.expectCurrentKind(tokens.TokenLParen) {
+		return nil
+	}
+
+	parser.nextTok()
+
+	sexp := &ast.SExp{}
+
+	for !parser.curIs(tokens.TokenRParen, tokens.TokenEOF) {
+		node := parser.parseNode()
+		if node != nil {
+			sexp.Items = append(sexp.Items, node)
 		}
-		switch tok.Kind {
-		case language.TokenRBrace:
-			return exps, nil
-		default:
-			parser.unread()
-			exp, err := parser.readExpr()
-			if err != nil {
-				return nil, errors.Join(ErrUnexpectedToken, err)
+		parser.nextTok()
+	}
+
+	if !parser.expectCurrentKind(tokens.TokenRParen) {
+		return nil
+	}
+
+	return sexp
+}
+
+func (parser *Parser) buildImportGo(sexp *ast.SExp) *ast.ImportGo {
+	if len(sexp.Items) == 1 {
+		parser.errorf("empty import-go")
+		return nil
+	}
+
+	importgo := &ast.ImportGo{
+		PosRange: parser.posRange(),
+	}
+
+	validateAliasItem := func(item *ast.SExp) bool {
+		// (alias string) or (alias symbol)
+
+		alias := pMatch[*ast.Symbol]()
+
+		ref := pOr(
+			pMatch[*ast.Literal[string]](),
+			pMatch[*ast.Symbol](),
+		)
+
+		return sexpMatch(item, alias, ref)
+	}
+
+	for i, item := range sexp.Items[1:] {
+		switch item := item.(type) {
+		case *ast.Literal[string], *ast.Symbol:
+			importgo.Items = append(importgo.Items, item)
+		case *ast.SExp:
+			if !validateAliasItem(item) {
+				parser.errorf("unexpected import-go item %d: %s", i+1, item.Tok())
+				return nil
 			}
-			exps = append(exps, exp)
+			importgo.Items = append(importgo.Items, item)
+		default:
+			parser.errorf("unexpected import-go item: %s", item.Tok())
+			return nil
 		}
 	}
+
+	return importgo
 }
 
-func (parser *Parser) readQuote() (language.Sexp, error) {
-	expr, errExpr := parser.readExpr()
-	if errExpr != nil {
-		return nil, errExpr
+func (parser *Parser) curIs(kinds ...tokens.TokenKind) bool {
+	return parser.cur != nil && slices.Contains(kinds, parser.cur.Kind)
+}
+
+func (parser *Parser) expectCurrentKind(kinds ...tokens.TokenKind) bool {
+	if parser.cur == nil {
+		parser.errorf("no current token")
+		return false
 	}
 
-	return language.Sexp{
-		quote,
-		expr,
-	}, nil
-}
-
-func (parser *Parser) unread() {
-	parser.i--
-}
-
-func (parser *Parser) next() (*language.Token, bool) {
-	if parser.i >= len(parser.Tokens) {
-		return nil, false
+	ok := slices.Contains(kinds, parser.cur.Kind)
+	if !ok {
+		parser.errorf("current: want tokens %s, got %q", kinds, parser.cur)
 	}
-	tok := parser.Tokens[parser.i]
-	parser.i++
-	return tok, true
+
+	return ok
+}
+
+func (parser *Parser) expectNextKind(kinds ...tokens.TokenKind) bool {
+	if parser.next == nil {
+		parser.errorf("no next token")
+		return false
+	}
+
+	ok := slices.Contains(kinds, parser.next.Kind)
+	if !ok {
+		parser.errorf("next: want tokens %s, got %s", kinds, parser.next.Kind)
+	}
+
+	return ok
+}
+
+type Error struct {
+	Pos tokens.Position
+	Err error
+}
+
+func (err *Error) Error() string {
+	if err == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("%s: %s", err.Pos, err.Err)
+}
+
+func (err *Error) Unwrap() error {
+	if err == nil {
+		return nil
+	}
+	return err.Err
+}
+
+func (parser *Parser) errorf(msg string, args ...any) {
+	err := fmt.Errorf(msg, args...)
+
+	if parser.cur != nil {
+		err = &Error{Pos: parser.cur.Pos, Err: err}
+	}
+
+	parser.errs = append(parser.errs, err)
+}
+
+func (parser *Parser) nextTok() {
+	parser.cur = parser.next
+	next, err := parser.lexer.Next()
+
+	switch {
+	case errors.Is(err, io.EOF):
+		next = &tokens.Token{Kind: tokens.TokenEOF, Pos: parser.cur.Pos}
+	case err != nil:
+		parser.errs = append(parser.errs, err)
+	}
+
+	parser.next = next
+}
+
+func (parser *Parser) posRange() ast.PosRange {
+	return ast.PosRange{
+		From: parser.cur.Pos,
+		To:   parser.next.Pos,
+	}
 }
