@@ -136,17 +136,19 @@ scan:
 
 // can read number or symbols + -
 func (lexer *Lexer) readNumber() (*language.Token, error) {
+	const floaty = ".eE"
+	const numbery = "+-_box" + floaty
 	value := &strings.Builder{}
 	sc := lexer.scanner
 
 	kind := language.TokenInt
 
 	for current := sc.Current(); ; current = sc.Scan() {
-		if containsRune(",.eE", current) {
+		if containsRune(".eE", current) {
 			kind = language.TokenFloat
 		}
 
-		ok := unicode.IsDigit(current) || containsRune("+-_box,.eE", current)
+		ok := unicode.IsDigit(current) || containsRune(numbery, current)
 		if !ok {
 			break
 		}
