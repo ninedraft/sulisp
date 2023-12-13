@@ -56,7 +56,7 @@ func (parser *Parser) parseNode() ast.Node {
 	case tokens.TokenLParen:
 		return parser.parseApply()
 	case tokens.TokenSymbol, tokens.TokenKeyword, tokens.TokenPoint:
-		return parser.parseAtomOrDot()
+		return parser.parseAtomBoolOrDot()
 	case tokens.TokenInt, tokens.TokenFloat, tokens.TokenStr:
 		return parser.parseLiteral()
 	default:
@@ -71,13 +71,20 @@ var defaultAtoms = []tokens.TokenKind{
 	tokens.TokenPoint,
 }
 
-func (parser *Parser) parseAtomOrDot(expect ...tokens.TokenKind) ast.Node {
+// parse symbol, keyword, bool literal or dot
+func (parser *Parser) parseAtomBoolOrDot(expect ...tokens.TokenKind) ast.Node {
 	if len(expect) == 0 {
 		expect = defaultAtoms
 	}
 
 	if !parser.expectCurrentKind(expect...) {
 		return nil
+	}
+
+	// crutch for bool literals
+	if parser.cur.Value == "true" || parser.cur.Value == "false" {
+		b, _ := strconv.ParseBool(parser.cur.Value)
+		return &ast.Literal[bool]{PosRange: parser.posRange(), Value: b}
 	}
 
 	var node ast.Node
