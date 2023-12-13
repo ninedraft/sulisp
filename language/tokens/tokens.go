@@ -35,7 +35,7 @@ func (kind TokenKind) Of(value string) *Token {
 }
 
 const (
-	TokenUndefined = 0 // <undefined>
+	TokenUndefined TokenKind = 0 // <undefined>
 
 	TokenLParen = TokenKind('(') // (
 	TokenRParen = TokenKind(')') // )

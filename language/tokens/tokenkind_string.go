@@ -8,6 +8,7 @@ func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
 	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
+	_ = x[TokenUndefined-0]
 	_ = x[TokenLParen-40]
 	_ = x[TokenRParen-41]
 	_ = x[TokenLBrack-91]
@@ -27,38 +28,41 @@ func _() {
 }
 
 const (
-	_TokenKind_name_0 = "'()"
-	_TokenKind_name_1 = "."
-	_TokenKind_name_2 = "["
-	_TokenKind_name_3 = "]"
-	_TokenKind_name_4 = "symbol:keywordintegerfloatstring; comment<eof>malformed"
-	_TokenKind_name_5 = "{"
-	_TokenKind_name_6 = "}"
+	_TokenKind_name_0 = "<undefined>"
+	_TokenKind_name_1 = "'()"
+	_TokenKind_name_2 = "."
+	_TokenKind_name_3 = "["
+	_TokenKind_name_4 = "]"
+	_TokenKind_name_5 = "symbol:keywordintegerfloatstring; comment<eof>malformed"
+	_TokenKind_name_6 = "{"
+	_TokenKind_name_7 = "}"
 )
 
 var (
-	_TokenKind_index_0 = [...]uint8{0, 1, 2, 3}
-	_TokenKind_index_4 = [...]uint8{0, 6, 14, 21, 26, 32, 41, 46, 55}
+	_TokenKind_index_1 = [...]uint8{0, 1, 2, 3}
+	_TokenKind_index_5 = [...]uint8{0, 6, 14, 21, 26, 32, 41, 46, 55}
 )
 
 func (i TokenKind) String() string {
 	switch {
+	case i == 0:
+		return _TokenKind_name_0
 	case 39 <= i && i <= 41:
 		i -= 39
-		return _TokenKind_name_0[_TokenKind_index_0[i]:_TokenKind_index_0[i+1]]
+		return _TokenKind_name_1[_TokenKind_index_1[i]:_TokenKind_index_1[i+1]]
 	case i == 46:
-		return _TokenKind_name_1
-	case i == 91:
 		return _TokenKind_name_2
-	case i == 93:
+	case i == 91:
 		return _TokenKind_name_3
+	case i == 93:
+		return _TokenKind_name_4
 	case 109 <= i && i <= 116:
 		i -= 109
-		return _TokenKind_name_4[_TokenKind_index_4[i]:_TokenKind_index_4[i+1]]
+		return _TokenKind_name_5[_TokenKind_index_5[i]:_TokenKind_index_5[i+1]]
 	case i == 123:
-		return _TokenKind_name_5
-	case i == 125:
 		return _TokenKind_name_6
+	case i == 125:
+		return _TokenKind_name_7
 	default:
 		return "TokenKind(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
