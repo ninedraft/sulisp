@@ -244,5 +244,3 @@ func isAtomRune(ru rune) bool {
 func containsRune(rr string, ru rune) bool {
 	return strings.ContainsRune(rr, ru)
 }
-
-func dbg(...any) {}
