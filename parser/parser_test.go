@@ -11,6 +11,7 @@ import (
 	"github.com/ninedraft/sulisp/lexer"
 	"github.com/ninedraft/sulisp/parser"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParse_Symbol(t *testing.T) {
@@ -20,9 +21,52 @@ func TestParse_Symbol(t *testing.T) {
 		(applorange)
 	`)
 
-	got := strings.TrimSpace(pkg.String())
+	sexp := requireItem[*ast.SExp](t, pkg.Nodes, 0, "parsed package")
+	symbol := requireItem[*ast.Symbol](t, sexp.Items, 0, "parsed symbol")
 
-	assert.Equal(t, "(applorange)", got)
+	assertEqual(t, &ast.Symbol{Value: "applorange"}, symbol, "parsed symbol")
+}
+
+func TestParse_Keyword(t *testing.T) {
+	t.Parallel()
+
+	pkg := assertParse(t, `
+		(:applorange)
+	`)
+
+	sexp := requireItem[*ast.SExp](t, pkg.Nodes, 0, "parsed package")
+	symbol := requireItem[*ast.Keyword](t, sexp.Items, 0, "parsed symbol")
+
+	assertEqual(t, &ast.Keyword{Value: ":applorange"}, symbol, "parsed symbol")
+}
+
+func TestParse_Numbers(t *testing.T) {
+	t.Parallel()
+
+	pkg := assertParse(t, `
+		(123 1.2)
+	`)
+
+	sexp := requireItem[*ast.SExp](t, pkg.Nodes, 0, "parsed package")
+
+	intLit := requireItem[*ast.Literal[int64]](t, sexp.Items, 0, "parsed int literal")
+	require.Equal(t, int64(123), intLit.Value, "parsed int literal")
+
+	floatLit := requireItem[*ast.Literal[float64]](t, sexp.Items, 1, "parsed float literal")
+	require.Equal(t, float64(1.2), floatLit.Value, "parsed float literal")
+}
+
+func TestParse_String(t *testing.T) {
+	t.Parallel()
+
+	pkg := assertParse(t, `
+		("applorange")
+	`)
+
+	sexp := requireItem[*ast.SExp](t, pkg.Nodes, 0, "parsed package")
+
+	strLit := requireItem[*ast.Literal[string]](t, sexp.Items, 0, "parsed string literal")
+	assertEqual(t, &ast.Literal[string]{Value: `"applorange"`}, strLit, "parsed string literal")
 }
 
 func TestParseImportGo(t *testing.T) {
@@ -36,7 +80,7 @@ func TestParseImportGo(t *testing.T) {
 			(. database/sql))
 	`)
 
-	node := assertItem[*ast.ImportGo](t, pkg.Nodes, 0, "parsed package")
+	node := requireItem[*ast.ImportGo](t, pkg.Nodes, 0, "parsed package")
 
 	want := &ast.ImportGo{
 		Items: []ast.Node{
@@ -137,7 +181,7 @@ func highlight(input string, pos tokens.Position) []string {
 	return []string{line, highlightedLine}
 }
 
-func assertItem[N ast.Node](t *testing.T, items []ast.Node, index int, msg ...any) N {
+func requireItem[N ast.Node](t *testing.T, items []ast.Node, index int, msg ...any) N {
 	t.Helper()
 
 	if index < 0 || index >= len(items) {
@@ -145,12 +189,23 @@ func assertItem[N ast.Node](t *testing.T, items []ast.Node, index int, msg ...an
 		t.Fatalf("index out of bounds: %d", index)
 	}
 
-	got, ok := items[index].(N)
+	item := items[index]
+	got, ok := item.(N)
 
 	if !ok {
+		var want N
 		t.Error(msg...)
-		t.Errorf("item at index %d is not a %T", index, got)
+		t.Fatalf("item at index %d is not a %T, but a %T", index, want, item)
 	}
 
 	return got
+}
+
+func assertEqual(t *testing.T, want, got ast.Node, msg ...any) {
+	t.Helper()
+
+	if !got.Equal(want) {
+		t.Error(msg...)
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
 }
