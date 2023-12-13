@@ -143,9 +143,8 @@ func (parser *Parser) parseApply() ast.Node {
 		return sexp
 	}
 
-	switch symbol.Value {
-	case "import-go":
-		return parser.buildImportGo(sexp)
+	if isSpecial[symbol.Value] {
+		return parser.buildSpecial(sexp)
 	}
 
 	return sexp
@@ -250,8 +249,15 @@ func (parser *Parser) nextTok() {
 }
 
 func (parser *Parser) posRange() ast.PosRange {
-	return ast.PosRange{
-		From: parser.cur.Pos,
-		To:   parser.next.Pos,
+	pos := ast.PosRange{}
+
+	if parser.cur != nil {
+		pos.From = parser.cur.Pos
 	}
+
+	if parser.next != nil {
+		pos.To = parser.next.Pos
+	}
+
+	return pos
 }

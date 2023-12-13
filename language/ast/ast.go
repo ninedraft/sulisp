@@ -156,52 +156,6 @@ func (kw *Keyword) Clone() Node {
 	return shallow(kw)
 }
 
-type ImportGo struct {
-	PosRange
-	Items []Node // string | symbol | (symbol string)
-}
-
-func (importgo *ImportGo) Tok() tokens.TokenKind {
-	return tokens.TokenSymbol
-}
-
-func (importgo *ImportGo) Equal(other Node) bool {
-	if importgo == nil {
-		return other == nil
-	}
-
-	if o, ok := other.(*ImportGo); ok {
-		return equalSlices(importgo.Items, o.Items)
-	}
-
-	return false
-}
-
-func (importgo *ImportGo) Clone() Node {
-	if importgo == nil {
-		return nil
-	}
-
-	clone := *importgo
-
-	for i, item := range clone.Items {
-		clone.Items[i] = Clone(item)
-	}
-
-	return &clone
-}
-
-func (importgo *ImportGo) String() string {
-	str := &strings.Builder{}
-
-	const sep = "\n    "
-	writeStrs(str, "(import-go", sep)
-	joinStringers(str, sep, importgo.Items)
-	writeStrs(str, ")")
-
-	return str.String()
-}
-
 type SExp struct {
 	PosRange
 	Items []Node
@@ -342,9 +296,7 @@ func joinStringers[S fmt.Stringer](wr io.StringWriter, sep string, items []S) {
 }
 
 func equalSlices[N1, N2 Node](slice []N1, other []N2) bool {
-	//log.Printf("comparing slices %d and %d", len(slice), len(other))
 	return slices.EqualFunc(slice, other, func(n1 N1, n2 N2) bool {
-		//	log.Println(n1, n1.Tok(), "==", n2, n2.Tok(), "? ->", n1.Equal(n2))
 		return n1.Equal(n2)
 	})
 }

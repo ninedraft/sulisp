@@ -98,6 +98,119 @@ func TestParseImportGo(t *testing.T) {
 	}
 }
 
+func TestParseIf(t *testing.T) {
+	t.Parallel()
+
+	pkg := assertParse(t, `
+		(if (cond1)
+			(then1))`)
+
+	node := requireItem[*ast.If](t, pkg.Nodes, 0, "parsed package")
+
+	want := &ast.If{
+		Cond: &ast.SExp{
+			Items: []ast.Node{
+				&ast.Symbol{Value: "cond1"},
+			},
+		},
+		Then: &ast.SExp{
+			Items: []ast.Node{
+				&ast.Symbol{Value: "then1"},
+			},
+		},
+	}
+
+	assertEqual(t, want, node, "parsed if")
+}
+
+func TestParseIfElse(t *testing.T) {
+	t.Parallel()
+
+	pkg := assertParse(t, `
+		(if (cond1)
+			(then1)
+			(else1))`)
+
+	node := requireItem[*ast.If](t, pkg.Nodes, 0, "parsed package")
+
+	want := &ast.If{
+		Cond: &ast.SExp{
+			Items: []ast.Node{
+				&ast.Symbol{Value: "cond1"},
+			},
+		},
+		Then: &ast.SExp{
+			Items: []ast.Node{
+				&ast.Symbol{Value: "then1"},
+			},
+		},
+		Else: &ast.SExp{
+			Items: []ast.Node{
+				&ast.Symbol{Value: "else1"},
+			},
+		},
+	}
+
+	assertEqual(t, want, node, "parsed if")
+}
+
+func TestParseCond(t *testing.T) {
+	t.Parallel()
+
+	pkg := assertParse(t, `
+		(cond (cond1)
+			(then1))`)
+
+	node := requireItem[*ast.If](t, pkg.Nodes, 0, "parsed package")
+
+	want := &ast.If{
+		Cond: &ast.SExp{
+			Items: []ast.Node{
+				&ast.Symbol{Value: "cond1"},
+			},
+		},
+		Then: &ast.SExp{
+			Items: []ast.Node{
+				&ast.Symbol{Value: "then1"},
+			},
+		},
+	}
+
+	assertEqual(t, want, node, "parsed if")
+}
+
+func TestParseSpecialOperator(t *testing.T) {
+	t.Parallel()
+
+	// + - * /
+
+	pkg := assertParse(t, `
+		(+ 1 2 3 4)
+		(* 1 2 3 4)
+
+		(- 1 2)
+		(/ 1 2)
+	`)
+
+	argumens := []ast.Node{
+		&ast.Literal[int64]{Value: 1},
+		&ast.Literal[int64]{Value: 2},
+		&ast.Literal[int64]{Value: 3},
+		&ast.Literal[int64]{Value: 4},
+	}
+
+	want := &ast.Package{
+		Nodes: []ast.Node{
+			&ast.SpecialOp{Op: "+", Items: argumens},
+			&ast.SpecialOp{Op: "*", Items: argumens},
+			&ast.SpecialOp{Op: "-", Items: argumens[:2]},
+			&ast.SpecialOp{Op: "/", Items: argumens[:2]},
+		},
+	}
+
+	assertEqual(t, want, pkg, "parsed special operators")
+}
+
 func assertParse(t *testing.T, input string) *ast.Package {
 	t.Helper()
 
