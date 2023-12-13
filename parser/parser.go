@@ -57,7 +57,7 @@ func (parser *Parser) parseNode() ast.Node {
 		return parser.parseApply()
 	case tokens.TokenSymbol, tokens.TokenKeyword, tokens.TokenPoint:
 		return parser.parseAtomBoolOrDot()
-	case tokens.TokenInt, tokens.TokenFloat, tokens.TokenStr:
+	case tokens.TokenInt, tokens.TokenFloat, tokens.TokenStr: // bool parsed in parseAtomBoolOrDot
 		return parser.parseLiteral()
 	default:
 		parser.errorf("unexpected token: %s", parser.cur)
