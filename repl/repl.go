@@ -38,7 +38,11 @@ func Run(out io.Writer, in io.Reader, signals <-chan Signal) error {
 	}
 
 	prompt := func() {
-		fmt.Fprintf(out, ">> ")
+		prompt := ">> "
+		if buf.Len() > 0 {
+			prompt = ".. "
+		}
+		_, _ = io.WriteString(out, prompt)
 	}
 
 	for prompt(); sc.Scan(); prompt() {
