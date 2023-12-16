@@ -99,6 +99,7 @@ var strEscapes = map[[2]rune]rune{
 	{'\\', 'r'}:  'r',
 	{'\\', 'n'}:  'n',
 	{'\\', 't'}:  't',
+	{'\\', 'x'}:  'x',
 }
 
 func (lexer *Lexer) readString() (*language.Token, error) {
@@ -110,10 +111,12 @@ func (lexer *Lexer) readString() (*language.Token, error) {
 
 scan:
 	for current := sc.Scan(); ; current = sc.Scan() {
-		escaped, isEscape := strEscapes[[2]rune{current, sc.Peek()}]
+		window := [...]rune{current, sc.Peek()}
+		escaped, isEscape := strEscapes[window]
+
 		switch {
 		case current == eof:
-			return nil, errors.Join(errBadStringLit, sc.Err())
+			return nil, errors.Join(errBadStringLit, sc.Err(), io.ErrUnexpectedEOF)
 		case current == '"':
 			buf.WriteRune(current)
 			sc.Scan()
