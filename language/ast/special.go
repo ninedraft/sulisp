@@ -93,7 +93,7 @@ func (if_ *If) Clone() Node {
 func (if_ *If) String() string {
 	str := &strings.Builder{}
 
-	writeStrs(str, "(if",
+	writeStrs(str, "(if ",
 		if_.Cond.String(), "\n",
 		"    ", if_.Then.String())
 
