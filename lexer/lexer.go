@@ -29,7 +29,10 @@ func NewLexer(filename string, re io.RuneReader) *Lexer {
 func (lexer *Lexer) Next() (*language.Token, error) {
 	tok, err := lexer.next()
 	if err != nil {
-		return nil, lexer.errPos(err)
+		return &language.Token{
+			Kind: language.TokenEOF,
+			Pos:  lexer.pos(),
+		}, lexer.errPos(err)
 	}
 
 	return tok, nil

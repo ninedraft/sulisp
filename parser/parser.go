@@ -17,12 +17,16 @@ type Parser struct {
 
 	errs      []error
 	cur, next *tokens.Token
+
+	infixes map[tokens.TokenKind]infixOp
 }
 
 func New(lexer Lexer) *Parser {
 	parser := &Parser{
 		lexer: lexer,
 	}
+
+	parser.addInfix(tokens.TokenPoint, parser.parseDotSelector)
 
 	cur, errCurrent := parser.lexer.Next()
 	if errCurrent != nil {
@@ -62,7 +66,37 @@ func (parser *Parser) Parse() (*ast.Package, error) {
 
 func (parser *Parser) parseNode() ast.Node {
 	if parser.cur == nil {
-		parser.errorf("no current token")
+		parser.errorf("parsing node: no current token")
+		return nil
+	}
+
+	parsed := parser.parseLeft()
+	if parsed == nil {
+		return nil
+	}
+
+	for !parser.nextIs(tokens.TokenEOF) {
+		infix, ok := parser.infixes[parser.next.Kind]
+		if !ok {
+			break
+		}
+
+		parser.nextTok()
+
+		if parser.curIs(tokens.TokenEOF) {
+			parser.errorf("%w", io.ErrUnexpectedEOF)
+			return nil
+		}
+
+		parsed = infix(parsed)
+	}
+
+	return parsed
+}
+
+func (parser *Parser) parseLeft() ast.Node {
+	if parser.curIs(tokens.TokenEOF) {
+		parser.errorf("%w", io.ErrUnexpectedEOF)
 		return nil
 	}
 
@@ -217,6 +251,10 @@ func (parser *Parser) expectCurrentKind(kinds ...tokens.TokenKind) bool {
 	return ok
 }
 
+func (parser *Parser) nextIs(kinds ...tokens.TokenKind) bool {
+	return parser.next != nil && slices.Contains(kinds, parser.next.Kind)
+}
+
 func (parser *Parser) expectNextKind(kinds ...tokens.TokenKind) bool {
 	if parser.next == nil {
 		parser.errorf("no next token")
@@ -264,10 +302,11 @@ func (parser *Parser) nextTok() {
 	parser.cur = parser.next
 	next, err := parser.lexer.Next()
 
-	switch {
-	case errors.Is(err, io.EOF):
-		next = &tokens.Token{Kind: tokens.TokenEOF, Pos: parser.posRange().From, Value: err.Error()}
-	case err != nil:
+	if err != nil {
+		parser.next = &tokens.Token{Kind: tokens.TokenEOF, Pos: parser.posRange().From, Value: err.Error()}
+	}
+
+	if err != nil && !errors.Is(err, io.EOF) {
 		parser.errs = append(parser.errs, err)
 	}
 

@@ -70,8 +70,8 @@ func p[N ast.Node](dst *N, sub ...pattern) pattern {
 			return fmt.Errorf("%w: want %T, got %s", errUnexpectedNode, got, n.Name())
 		}
 
-		if isEqual(got, *dst) {
-			return fmt.Errorf("%w: got %q, want %q", errNodeDontMatch, got, *dst)
+		if ast.Node(*dst) != nil && !isEqual(got, *dst) {
+			return fmt.Errorf("%w: got %q, want %v", errNodeDontMatch, got, *dst)
 		}
 		for _, match := range sub {
 			err := match(n)

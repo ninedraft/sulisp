@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/ninedraft/sulisp/lexer"
 	"github.com/ninedraft/sulisp/parser"
@@ -27,8 +28,6 @@ func Run(out io.Writer, in io.Reader, signals <-chan Signal) error {
 
 	sc := bufio.NewScanner(in)
 
-	fmt.Fprintf(out, ">> ")
-
 	handle := func(signal Signal) {
 		switch signal.Kind {
 		case SignalHistoryPrev:
@@ -38,7 +37,11 @@ func Run(out io.Writer, in io.Reader, signals <-chan Signal) error {
 		}
 	}
 
-	for sc.Scan() {
+	prompt := func() {
+		fmt.Fprintf(out, ">> ")
+	}
+
+	for prompt(); sc.Scan(); prompt() {
 		select {
 		case signal := <-signals:
 			handle(signal)
@@ -46,8 +49,13 @@ func Run(out io.Writer, in io.Reader, signals <-chan Signal) error {
 			// pass
 		}
 
-		if len(bytes.TrimSpace(sc.Bytes())) == 0 {
-			fmt.Fprintf(out, ">> ")
+		cmd := strings.TrimSpace(sc.Text())
+		switch cmd {
+		case ":q", ":quit":
+			fmt.Fprintf(out, "bye!\n")
+			return nil
+		case ":h", ":help":
+			fmt.Fprintf(out, "help\n")
 			continue
 		}
 
@@ -72,7 +80,6 @@ func Run(out io.Writer, in io.Reader, signals <-chan Signal) error {
 		}
 
 		buf.Reset()
-		fmt.Fprintf(out, ">> ")
 	}
 
 	return sc.Err()

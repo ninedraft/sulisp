@@ -211,6 +211,26 @@ func TestParseSpecialOperator(t *testing.T) {
 	assertEqual(t, want, pkg, "parsed special operators")
 }
 
+func TestParseDotSelector(t *testing.T) {
+	t.Parallel()
+
+	pkg := assertParse(t, `
+		a.(x y)
+	`)
+
+	selector := requireItem[*ast.DotSelector](t, pkg.Nodes, 0, "parsed selector")
+
+	a := &ast.Symbol{Value: "a"}
+	x := &ast.Symbol{Value: "x"}
+	y := &ast.Symbol{Value: "y"}
+	want := &ast.DotSelector{
+		Left:  a,
+		Right: ast.NewSexp(x, y),
+	}
+
+	assertEqual(t, want, selector, "parsed dot selector")
+}
+
 func assertParse(t *testing.T, input string) *ast.Package {
 	t.Helper()
 

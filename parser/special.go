@@ -9,6 +9,7 @@ var isSpecial = map[string]bool{
 	"import-go": true,
 	"if":        true, "cond": true,
 	"+": true, "-": true, "*": true, "/": true,
+	".": true,
 }
 
 var specialOperators = map[string]bool{
@@ -31,6 +32,8 @@ func (parser *Parser) buildSpecial(sexp *ast.SExp) ast.Node {
 		return parser.buildImportGo(sexp)
 	case "if", "cond":
 		return parser.buildIf(sexp)
+	case ".":
+		return parser.buildDotSelector(sexp)
 	}
 
 	if specialOperators[head.Value] {
@@ -128,5 +131,23 @@ func (parser *Parser) buildSpecialOperator(sexp *ast.SExp) *ast.SpecialOp {
 		PosRange: parser.posRange(),
 		Op:       head.Value,
 		Items:    sexp.Items[1:],
+	}
+}
+
+func (parser *Parser) buildDotSelector(sexp *ast.SExp) *ast.DotSelector {
+	var left, right ast.Node
+	dot := &ast.Symbol{Value: "."}
+
+	errMatch := sexpMatch(sexp, p(&dot), p(&left), p(&right))
+
+	if errMatch != nil {
+		parser.errorf("invalid dot selector: %w", errMatch)
+		return nil
+	}
+
+	return &ast.DotSelector{
+		PosRange: parser.posRange(),
+		Left:     left,
+		Right:    right,
 	}
 }

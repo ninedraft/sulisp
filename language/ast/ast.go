@@ -207,6 +207,43 @@ func (sexp *SExp) Clone() Node {
 	return &clone
 }
 
+type DotSelector struct {
+	PosRange
+	Left, Right Node // left.right
+}
+
+func (dot *DotSelector) Equal(other Node) bool {
+	if dot == nil {
+		return other == nil
+	}
+
+	if o, _ := other.(*DotSelector); o != nil {
+		return dot.Left.Equal(o.Left) && dot.Right.Equal(o.Right)
+	}
+
+	return false
+}
+
+func (*DotSelector) Name() string {
+	return "dot-selector"
+}
+
+func (dot *DotSelector) String() string {
+	return "(. " + dot.Left.String() + " " + dot.Right.String() + ")"
+}
+
+func (dot *DotSelector) Clone() Node {
+	if dot == nil {
+		return nil
+	}
+
+	clone := shallow(dot)
+	clone.Left = Clone(dot.Left)
+	clone.Right = Clone(dot.Right)
+
+	return clone
+}
+
 func Clone[E Node](node E) E {
 	n := Node(node)
 
