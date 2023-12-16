@@ -24,8 +24,17 @@ func New(lexer Lexer) *Parser {
 		lexer: lexer,
 	}
 
-	parser.nextTok()
-	parser.nextTok()
+	cur, errCurrent := parser.lexer.Next()
+	if errCurrent != nil {
+		parser.errs = append(parser.errs, errCurrent)
+	}
+
+	next, errNext := parser.lexer.Next()
+	if errNext != nil {
+		parser.errs = append(parser.errs, errNext)
+	}
+
+	parser.cur, parser.next = cur, next
 
 	return parser
 }
@@ -52,6 +61,11 @@ func (parser *Parser) Parse() (*ast.Package, error) {
 }
 
 func (parser *Parser) parseNode() ast.Node {
+	if parser.cur == nil {
+		parser.errorf("no current token")
+		return nil
+	}
+
 	switch parser.cur.Kind {
 	case tokens.TokenLParen:
 		return parser.parseApply()
@@ -191,6 +205,11 @@ func (parser *Parser) expectCurrentKind(kinds ...tokens.TokenKind) bool {
 	}
 
 	ok := slices.Contains(kinds, parser.cur.Kind)
+	if !ok && parser.cur.Kind == tokens.TokenEOF {
+		parser.errorf("%w", io.ErrUnexpectedEOF)
+		return false
+	}
+
 	if !ok {
 		parser.errorf("current: want tokens %s, got %q", kinds, parser.cur)
 	}
@@ -247,7 +266,7 @@ func (parser *Parser) nextTok() {
 
 	switch {
 	case errors.Is(err, io.EOF):
-		next = &tokens.Token{Kind: tokens.TokenEOF, Pos: parser.cur.Pos}
+		next = &tokens.Token{Kind: tokens.TokenEOF, Pos: parser.posRange().From, Value: err.Error()}
 	case err != nil:
 		parser.errs = append(parser.errs, err)
 	}
