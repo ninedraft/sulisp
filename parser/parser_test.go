@@ -77,7 +77,7 @@ func TestParseImportGo(t *testing.T) {
 			"fmt"
 			net/http
 			(_ "embed")
-			(. database/sql))
+			(! database/sql))
 	`)
 
 	node := requireItem[*ast.ImportGo](t, pkg.Nodes, 0, "parsed package")
@@ -87,7 +87,7 @@ func TestParseImportGo(t *testing.T) {
 			&ast.Literal[string]{Value: `"fmt"`},
 			&ast.Symbol{Value: "net/http"},
 			ast.NewSexp(&ast.Symbol{Value: "_"}, &ast.Literal[string]{Value: `"embed"`}),
-			ast.NewSexp(&ast.Symbol{Value: "."}, &ast.Symbol{Value: "database/sql"}),
+			ast.NewSexp(&ast.Symbol{Value: "!"}, &ast.Symbol{Value: "database/sql"}),
 		},
 	}
 

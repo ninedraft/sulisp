@@ -138,7 +138,7 @@ func (parser *Parser) buildDotSelector(sexp *ast.SExp) *ast.DotSelector {
 	var left, right ast.Node
 	dot := &ast.Symbol{Value: "."}
 
-	errMatch := sexpMatch(sexp, p(&dot), p(&left), p(&right))
+	errMatch := sexpMatch(sexp, pEq(&dot), p(&left), p(&right))
 
 	if errMatch != nil {
 		parser.errorf("invalid dot selector: %w", errMatch)

@@ -59,6 +59,24 @@ func pMatch[N ast.Node]() pattern {
 	}
 }
 
+func pEq[N ast.Node](dst *N, sub ...pattern) pattern {
+	if dst == nil {
+		panic("[parser] pattern matcher got a nil node target")
+	}
+
+	return func(n ast.Node) error {
+		if err := p(dst, sub...)(n); err != nil {
+			return err
+		}
+
+		if !isEqual(n, *dst) {
+			return fmt.Errorf("%w: got %v, want %v", errNodeDontMatch, n, (*dst).Name())
+		}
+
+		return nil
+	}
+}
+
 func p[N ast.Node](dst *N, sub ...pattern) pattern {
 	if dst == nil {
 		panic("[parser] pattern matcher got a nil node target")
@@ -67,12 +85,9 @@ func p[N ast.Node](dst *N, sub ...pattern) pattern {
 	return func(n ast.Node) error {
 		got, ok := n.(N)
 		if !ok {
-			return fmt.Errorf("%w: want %T, got %s", errUnexpectedNode, got, n.Name())
+			return fmt.Errorf("%w: bad type: want %T, got %T", errUnexpectedNode, got, n)
 		}
 
-		if ast.Node(*dst) != nil && !isEqual(got, *dst) {
-			return fmt.Errorf("%w: got %q, want %v", errNodeDontMatch, got, *dst)
-		}
 		for _, match := range sub {
 			err := match(n)
 			if err != nil {
