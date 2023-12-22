@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"slices"
 	"strings"
 )
 
@@ -147,4 +148,140 @@ func (special *SpecialOp) String() string {
 	writeStrs(str, ")")
 
 	return str.String()
+}
+
+/*
+spec:
+
+	(fn add (int int) (int error)
+		(x, y)
+		(+ x y))
+*/
+type FunctionLiteral struct {
+	PosRange
+	FnName *Symbol
+	Spec   *FunctionSpec
+	Body   Node
+}
+
+func (fn *FunctionLiteral) Name() string {
+	return "*defn"
+}
+
+func (fn *FunctionLiteral) Equal(other Node) bool {
+	if fn == nil {
+		return other == nil
+	}
+
+	if o, ok := other.(*FunctionLiteral); ok {
+		return fn.FnName.Equal(o.FnName) && fn.Spec.Equal(o.Spec) && fn.Body.Equal(o.Body)
+	}
+
+	return false
+}
+
+func (fn *FunctionLiteral) Clone() Node {
+	if fn == nil {
+		return nil
+	}
+
+	clone := *fn
+	clone.FnName = Clone(fn.FnName)
+	clone.Spec = Clone(fn.Spec)
+	clone.Body = Clone(fn.Body)
+
+	return &clone
+}
+
+func (fn *FunctionLiteral) String() string {
+	str := &strings.Builder{}
+
+	writeStrs(str, "(fn ", fn.FnName.String(), " ", fn.Spec.String(), "\n    ", fn.Body.String(), ")")
+
+	return str.String()
+}
+
+type FunctionSpec struct {
+	PosRange
+	Params []*FieldSpec
+	Ret    []Node
+}
+
+func (spec *FunctionSpec) Name() string {
+	return "*fn"
+}
+
+func (spec *FunctionSpec) Equal(other Node) bool {
+	if spec == nil {
+		return other == nil
+	}
+
+	if o, ok := other.(*FunctionSpec); ok {
+		return slices.EqualFunc(spec.Params, o.Params, (*FieldSpec).equal) &&
+			equalSlices(spec.Ret, o.Ret)
+	}
+
+	return false
+}
+
+func (spec *FunctionSpec) Clone() Node {
+	if spec == nil {
+		return nil
+	}
+
+	clone := shallow(spec)
+
+	for i, param := range clone.Params {
+		clone.Params[i] = param.clone()
+	}
+
+	clone.Ret = cloneSlice(spec.Ret)
+
+	return clone
+}
+
+func (spec *FunctionSpec) String() string {
+	str := &strings.Builder{}
+
+	writeStrs(str, "(*fn ")
+	joinStringers(str, " ", spec.Params)
+
+	if len(spec.Ret) > 0 {
+		writeStrs(str, " -> ")
+		joinStringers(str, " ", spec.Ret)
+	}
+
+	writeStrs(str, ")")
+
+	return str.String()
+}
+
+type FieldSpec struct {
+	Names []*Symbol
+	Type  Node
+}
+
+func (field *FieldSpec) String() string {
+	str := &strings.Builder{}
+
+	joinStringers(str, " ", field.Names)
+	writeStrs(str, " :- ", field.Type.String())
+
+	return str.String()
+}
+
+func (field *FieldSpec) clone() *FieldSpec {
+	if field == nil {
+		return nil
+	}
+
+	clone := shallow(field)
+	clone.Names = cloneSlice(field.Names)
+	clone.Type = Clone(field.Type)
+
+	return clone
+}
+
+func (field *FieldSpec) equal(other *FieldSpec) bool {
+	return equalSlices(field.Names, other.Names) && field.Type.Equal(other.Type)
 }
