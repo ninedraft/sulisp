@@ -17,7 +17,7 @@ func (importgo *ImportGo) Name() string {
 
 func (importgo *ImportGo) Equal(other Node) bool {
 	if importgo == nil {
-		return other == nil
+		return isEmpty[**ImportGo](other)
 	}
 
 	if o, ok := other.(*ImportGo); ok {
@@ -62,7 +62,7 @@ func (*If) Name() string { return "if" }
 
 func (if_ *If) Equal(other Node) bool {
 	if if_ == nil {
-		return other == nil
+		return isEmpty[*If](other)
 	}
 
 	o, ok := other.(*If)
@@ -120,7 +120,7 @@ func (special *SpecialOp) Name() string {
 
 func (special *SpecialOp) Equal(other Node) bool {
 	if special == nil {
-		return other == nil
+		return isEmpty[*SpecialOp](other)
 	}
 
 	if o, ok := other.(*SpecialOp); ok {
@@ -178,7 +178,7 @@ func (fn *FunctionDecl) Name() string {
 
 func (fn *FunctionDecl) Equal(other Node) bool {
 	if fn == nil {
-		return other == nil
+		return isEmpty[*FunctionDecl](other)
 	}
 
 	if o, ok := other.(*FunctionDecl); ok {
@@ -234,7 +234,7 @@ func (spec *FunctionSpec) Name() string {
 
 func (spec *FunctionSpec) Equal(other Node) bool {
 	if spec == nil {
-		return other == nil
+		return isEmpty[*FunctionSpec](other)
 	}
 
 	if o, ok := other.(*FunctionSpec); ok {
