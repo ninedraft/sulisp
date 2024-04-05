@@ -2,11 +2,7 @@ package parser_test
 
 import (
 	"errors"
-	goast "go/ast"
-	"go/format"
-	"go/token"
 	"log"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -243,109 +239,6 @@ func TestParseFunctionDecl(t *testing.T) {
 
 		assertEqual(t, want, node, "parsed function declaration")
 	})
-}
-
-func TestParseWalk(t *testing.T) {
-	t.Skip("later")
-	t.Parallel()
-
-	pkg := assertParse(t, `(defn foo [a :- int b :- int] (int) (+ a b))`)
-
-	type ctx struct {
-		parent      *ctx
-		children    []*ctx
-		n           ast.Node
-		transformed goast.Expr
-	}
-
-	parentNode := func(c *ctx) ast.Node {
-		if c == nil || c.parent == nil {
-			return nil
-		}
-		return c.parent.n
-	}
-	next := func(c *ctx, n ast.Node) *ctx {
-		_c := &ctx{parent: c, n: n}
-		c.children = append(c.children, _c)
-		return _c
-	}
-	root := &ctx{n: pkg}
-	for node, c := range ast.Walk(pkg, root, next) {
-		t.Error(node, parentNode(c))
-
-		switch node := node.(type) {
-		case *ast.Literal[int64]:
-			c.transformed = &goast.BasicLit{Kind: token.INT, Value: strconv.FormatInt(node.Value, 10)}
-		case *ast.SpecialOp:
-			args := []goast.Expr{}
-			for _, child := range c.children {
-				args = append(args, child.transformed)
-			}
-			c.transformed = buildOpMultiple(node.Op, args)
-		case *ast.Package:
-			pkg := &goast.FuncLit{
-				Type: &goast.FuncType{Params: &goast.FieldList{}},
-				Body: &goast.BlockStmt{},
-			}
-
-			for _, child := range c.children {
-				pkg.Body.List = append(pkg.Body.List, &goast.ExprStmt{X: child.transformed})
-			}
-
-			c.transformed = &goast.CallExpr{Fun: pkg}
-		default:
-			t.Logf("%T", node)
-		}
-	}
-
-	result := &strings.Builder{}
-	format.Node(result, token.NewFileSet(), root.transformed)
-
-	t.Error(result.String())
-}
-
-// (+ 1) -> +1
-// (+ 1 2) -> (1 + 2)
-// (+ 1 2 3) -> (1 + 2 + 3)
-func buildOpMultiple(op string, items []goast.Expr) goast.Expr {
-	opTok := token.ADD
-	switch op {
-	case "+":
-		opTok = token.ADD
-	case "-":
-		opTok = token.SUB
-	case "*":
-		opTok = token.MUL
-	case "/":
-		opTok = token.QUO
-	}
-
-	if len(items) == 1 {
-		return &goast.ParenExpr{
-			X: &goast.UnaryExpr{
-				Op: opTok,
-				X:  items[0],
-			},
-		}
-	}
-
-	if len(items) == 2 {
-		return &goast.ParenExpr{
-			X: &goast.BinaryExpr{
-				X:  items[0],
-				Op: opTok,
-				Y:  items[1],
-			},
-		}
-	}
-
-	return &goast.BinaryExpr{
-		X:  items[0],
-		Op: opTok,
-		Y: &goast.ParenExpr{
-			X: buildOpMultiple(op, items[1:]),
-		},
-	}
 }
 
 func TestParseSpecialOperator(t *testing.T) {
