@@ -31,7 +31,7 @@ func children(node Node) iter.Seq[Node] {
 			itermore.YieldFrom(yield, itermore.Slice(n.Items))
 		case *SExp:
 			itermore.YieldFrom(yield, itermore.Slice(n.Items))
-		case *FunctionLiteral:
+		case *FunctionDecl:
 			yieldFunctionLiteral(yield, n)
 		case *FunctionSpec:
 			yieldFunctionSpec(yield, n)
@@ -47,7 +47,7 @@ func children(node Node) iter.Seq[Node] {
 	}
 }
 
-func yieldFunctionLiteral(yield func(Node) bool, fl *FunctionLiteral) bool {
+func yieldFunctionLiteral(yield func(Node) bool, fl *FunctionDecl) bool {
 	return itermore.YieldFrom(yield, itermore.Items[Node](
 		fl.Spec,
 		fl.Body,

@@ -165,30 +165,30 @@ spec:
 		(x, y)
 		(+ x y))
 */
-type FunctionLiteral struct {
+type FunctionDecl struct {
 	PosRange
-	FnName *Symbol
+	FnName *Symbol // Optional, nil for anonymous functions
 	Spec   *FunctionSpec
 	Body   Node
 }
 
-func (fn *FunctionLiteral) Name() string {
-	return "*defn"
+func (fn *FunctionDecl) Name() string {
+	return "*fn"
 }
 
-func (fn *FunctionLiteral) Equal(other Node) bool {
+func (fn *FunctionDecl) Equal(other Node) bool {
 	if fn == nil {
 		return other == nil
 	}
 
-	if o, ok := other.(*FunctionLiteral); ok {
+	if o, ok := other.(*FunctionDecl); ok {
 		return fn.FnName.Equal(o.FnName) && fn.Spec.Equal(o.Spec) && fn.Body.Equal(o.Body)
 	}
 
 	return false
 }
 
-func (fn *FunctionLiteral) Clone() Node {
+func (fn *FunctionDecl) Clone() Node {
 	if fn == nil {
 		return nil
 	}
@@ -201,10 +201,23 @@ func (fn *FunctionLiteral) Clone() Node {
 	return &clone
 }
 
-func (fn *FunctionLiteral) String() string {
+func (fn *FunctionDecl) String() string {
 	str := &strings.Builder{}
 
-	writeStrs(str, "(fn ", fn.FnName.String(), " ", fn.Spec.String(), "\n    ", fn.Body.String(), ")")
+	writeStrs(str, "(*fn ")
+	if fn.FnName != nil {
+		writeStrs(str, fn.FnName.String(), " ")
+	}
+	writeStrs(str, "(")
+	joinStringers(str, " ", fn.Spec.Params)
+	writeStrs(str, ")")
+	if len(fn.Spec.Ret) > 0 {
+		writeStrs(str, " (")
+		joinStringers(str, " ", fn.Spec.Ret)
+		writeStrs(str, ")")
+	}
+
+	writeStrs(str, "\n    ", fn.Body.String(), ")")
 
 	return str.String()
 }
@@ -216,7 +229,7 @@ type FunctionSpec struct {
 }
 
 func (spec *FunctionSpec) Name() string {
-	return "*fn"
+	return "*fn-spec"
 }
 
 func (spec *FunctionSpec) Equal(other Node) bool {
@@ -251,12 +264,14 @@ func (spec *FunctionSpec) Clone() Node {
 func (spec *FunctionSpec) String() string {
 	str := &strings.Builder{}
 
-	writeStrs(str, "(*fn ")
+	writeStrs(str, "((")
 	joinStringers(str, " ", spec.Params)
+	writeStrs(str, ")")
 
 	if len(spec.Ret) > 0 {
-		writeStrs(str, " -> ")
-		joinStringers(str, " ", spec.Ret)
+		writeStrs(str, " (")
+		joinStringers(str, ":_", spec.Ret)
+		writeStrs(str, ")")
 	}
 
 	writeStrs(str, ")")
@@ -265,15 +280,15 @@ func (spec *FunctionSpec) String() string {
 }
 
 type FieldSpec struct {
-	Names []*Symbol
-	Type  Node
+	Name Node
+	Type Node
 }
 
 func (field *FieldSpec) String() string {
 	str := &strings.Builder{}
 
-	joinStringers(str, " ", field.Names)
-	writeStrs(str, " :- ", field.Type.String())
+	str.WriteString(field.Name.String())
+	writeStrs(str, " :_ ", field.Type.String())
 
 	return str.String()
 }
@@ -284,12 +299,12 @@ func (field *FieldSpec) clone() *FieldSpec {
 	}
 
 	clone := shallow(field)
-	clone.Names = cloneSlice(field.Names)
+	clone.Name = Clone(field.Name)
 	clone.Type = Clone(field.Type)
 
 	return clone
 }
 
 func (field *FieldSpec) equal(other *FieldSpec) bool {
-	return equalSlices(field.Names, other.Names) && field.Type.Equal(other.Type)
+	return field.Name.Equal(other.Name) && field.Type.Equal(other.Type)
 }
