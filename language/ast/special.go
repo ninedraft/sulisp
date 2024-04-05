@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 )
@@ -144,10 +145,17 @@ func (special *SpecialOp) String() string {
 	str := &strings.Builder{}
 
 	writeStrs(str, "(", special.Op)
+	if len(special.Items) > 0 {
+		writeStrs(str, " ")
+	}
 	joinStringers(str, " ", special.Items)
 	writeStrs(str, ")")
 
 	return str.String()
+}
+
+func (special *SpecialOp) GoString() string {
+	return fmt.Sprintf("SpecialOp{Op: %q, Items: %#v}", special.Op, special.Items)
 }
 
 /*
