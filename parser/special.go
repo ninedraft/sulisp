@@ -1,6 +1,8 @@
 package parser
 
 import (
+	"slices"
+
 	"github.com/ninedraft/sulisp/language/ast"
 	"golang.org/x/exp/maps"
 )
@@ -166,5 +168,36 @@ var resultsSep = &ast.Symbol{Value: "->"}
 var paramTypeSep = &ast.Keyword{Value: ":-"}
 
 func (parser *Parser) buildFnSpec(sexp *ast.SExp) *ast.FunctionSpec {
-	return nil
+	if len(sexp.Items) < 1 {
+		parser.errorf("function spec must have at least 1 argument")
+		return nil
+	}
+
+	params := []*ast.FieldSpec{}
+	top := &ast.FieldSpec{}
+
+	readNames := func() []*ast.Symbol {
+		names := []*ast.Symbol{}
+		for _, item := range sexp.Items {
+			if paramTypeSep.Equal(item) {
+				break
+			}
+
+			if sym, ok := item.(*ast.Symbol); ok {
+				names = append(names, sym)
+			}
+		}
+		return names
+	}
+
+	results := []ast.Node{}
+	returnIdx := slices.IndexFunc(sexp.Items, resultsSep.Equal)
+	if returnIdx > 0 {
+		results = sexp.Items[returnIdx+1:]
+	}
+
+	return &ast.FunctionSpec{
+		PosRange: parser.posRange(),
+		Ret:      results,
+	}
 }
