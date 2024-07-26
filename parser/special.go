@@ -9,7 +9,8 @@ var isSpecial = map[string]bool{
 	"import-go": true,
 	"if":        true, "cond": true,
 	"+": true, "-": true, "*": true, "/": true,
-	".": true,
+	".":   true,
+	"*fn": true,
 }
 
 var specialOperators = map[string]bool{
@@ -34,6 +35,8 @@ func (parser *Parser) buildSpecial(sexp *ast.SExp) ast.Node {
 		return parser.buildIf(sexp)
 	case ".":
 		return parser.buildDotSelector(sexp)
+	case "*fn":
+		return parser.buildFunctionDecl(sexp)
 	}
 
 	if specialOperators[head.Value] {
@@ -134,11 +137,12 @@ func (parser *Parser) buildSpecialOperator(sexp *ast.SExp) *ast.SpecialOp {
 	}
 }
 
+var dot = &ast.Symbol{Value: "."}
+
 func (parser *Parser) buildDotSelector(sexp *ast.SExp) *ast.DotSelector {
 	var left, right ast.Node
-	dot := &ast.Symbol{Value: "."}
 
-	errMatch := sexpMatch(sexp, pEq(&dot), p(&left), p(&right))
+	errMatch := sexpMatch(sexp, pEq(dot), p(&left), p(&right))
 
 	if errMatch != nil {
 		parser.errorf("invalid dot selector: %w", errMatch)
@@ -149,5 +153,126 @@ func (parser *Parser) buildDotSelector(sexp *ast.SExp) *ast.DotSelector {
 		PosRange: parser.posRange(),
 		Left:     left,
 		Right:    right,
+	}
+}
+
+var fnHead = &ast.Symbol{Value: "*fn"}
+
+/*
+Examples:
+
+	(*fn foo (p1 :_ t1 p2 :_ t2) (r1 r2 r3) (body)) ; multiple results, with name
+	(*fn (p1 :_ t1 p2 :_ t2) (body)) ; no results, anonymous
+*/
+func (parser *Parser) buildFunctionDecl(sexp *ast.SExp) *ast.FunctionDecl {
+	if len(sexp.Items) < 3 {
+		parser.errorf("function decl must have at least 3 arguments")
+		return nil
+	}
+
+	if err := pEq(fnHead)(sexp.Items[0]); err != nil {
+		parser.errorf("invalid function decl: %w", err)
+		return nil
+	}
+
+	rest := sexp.Items[1:]
+	name, rest := matchConsume[*ast.Symbol](rest)
+	params, rest := matchConsume[*ast.SExp](rest)
+	if params == nil {
+		parser.errorf("function declaration must have params, got %s", rest[0].Name())
+		return nil
+	}
+
+	if len(rest) == 0 {
+		parser.errorf("function declaration must have body")
+		return nil
+	}
+
+	fnSpec := &ast.SExp{Items: []ast.Node{params}}
+
+	if len(rest) > 1 {
+		fnSpec.Items = append(fnSpec.Items, rest[0])
+		rest = rest[1:]
+	}
+
+	spec := parser.buildFnSpec(fnSpec)
+	if spec == nil {
+		parser.errorf("invalid function declaration spec")
+		return nil
+	}
+
+	return &ast.FunctionDecl{
+		PosRange: parser.posRange(),
+		FnName:   name,
+		Spec:     spec,
+		Body:     rest[0],
+	}
+}
+
+func matchConsume[N ast.Node](nodes []ast.Node) (N, []ast.Node) {
+	var empty N
+	if len(nodes) == 0 {
+		return empty, nil
+	}
+
+	n, ok := nodes[0].(N)
+	if !ok {
+		return empty, nodes
+	}
+
+	return n, nodes[1:]
+}
+
+var paramTypeSep = &ast.Keyword{Value: "_"}
+
+/*
+Example:
+
+	((p1 :_ t1 p2 :_ t2) (r1 r2 r3)) ; multiple results
+	((p1 :_ t1 p2 :_ tc)) ; no results
+*/
+func (parser *Parser) buildFnSpec(sexp *ast.SExp) *ast.FunctionSpec {
+	if len(sexp.Items) < 1 {
+		parser.errorf("function spec must have at least 1 argument")
+		return nil
+	}
+
+	var params, results *ast.SExp
+
+	errMatch := sexpMatch(sexp, p(&params), pOpt(&results))
+	if errMatch != nil {
+		parser.errorf("invalid function spec: %w", errMatch)
+		return nil
+	}
+
+	if len(params.Items)%3 != 0 {
+		parser.errorf("function spec params must consist of $name :_ $type pairs, got %d items", len(params.Items))
+		return nil
+	}
+
+	paramFields := make([]*ast.FieldSpec, 0, len(params.Items)/2)
+	for i := 0; i < len(params.Items); i += 3 {
+		var name, typ ast.Node
+		field := &ast.SExp{Items: params.Items[i : i+3]}
+		errMatch = sexpMatch(field, p(&name), pEq(paramTypeSep), p(&typ))
+		if errMatch != nil {
+			parser.errorf("invalid param spec %s: %w", field, errMatch)
+			return nil
+		}
+
+		paramFields = append(paramFields, &ast.FieldSpec{
+			Name: name,
+			Type: typ,
+		})
+	}
+
+	if results == nil {
+		results = &ast.SExp{}
+	}
+
+	return &ast.FunctionSpec{
+		PosRange: parser.posRange(),
+		Params:   paramFields,
+		Ret:      results.Items,
 	}
 }

@@ -179,6 +179,68 @@ func TestParseCond(t *testing.T) {
 	assertEqual(t, want, node, "parsed if")
 }
 
+func TestParseFunctionDecl(t *testing.T) {
+	t.Parallel()
+
+	t.Run("named", func(t *testing.T) {
+		t.Parallel()
+		pkg := assertParse(t, `
+		(*fn sum (a :_ int b :_ int) (int) (+ a b))
+	`)
+
+		node := requireItem[*ast.FunctionDecl](t, pkg.Nodes, 0, "parsed package")
+
+		want := &ast.FunctionDecl{
+			FnName: &ast.Symbol{Value: "sum"},
+			Spec: &ast.FunctionSpec{
+				Params: []*ast.FieldSpec{
+					{Name: &ast.Symbol{Value: "a"}, Type: &ast.Symbol{Value: "int"}},
+					{Name: &ast.Symbol{Value: "b"}, Type: &ast.Symbol{Value: "int"}},
+				},
+				Ret: []ast.Node{&ast.Symbol{Value: "int"}},
+			},
+			Body: &ast.SpecialOp{
+				Op: "+",
+				Items: []ast.Node{
+					&ast.Symbol{Value: "a"},
+					&ast.Symbol{Value: "b"},
+				},
+			},
+		}
+
+		assertEqual(t, want, node, "parsed function declaration")
+	})
+
+	t.Run("anonymous", func(t *testing.T) {
+		t.Parallel()
+
+		pkg := assertParse(t, `
+			(*fn (a :_ int b :_ int) (int) (+ a b))
+		`)
+
+		node := requireItem[*ast.FunctionDecl](t, pkg.Nodes, 0, "parsed package")
+
+		want := &ast.FunctionDecl{
+			Spec: &ast.FunctionSpec{
+				Params: []*ast.FieldSpec{
+					{Name: &ast.Symbol{Value: "a"}, Type: &ast.Symbol{Value: "int"}},
+					{Name: &ast.Symbol{Value: "b"}, Type: &ast.Symbol{Value: "int"}},
+				},
+				Ret: []ast.Node{&ast.Symbol{Value: "int"}},
+			},
+			Body: &ast.SpecialOp{
+				Op: "+",
+				Items: []ast.Node{
+					&ast.Symbol{Value: "a"},
+					&ast.Symbol{Value: "b"},
+				},
+			},
+		}
+
+		assertEqual(t, want, node, "parsed function declaration")
+	})
+}
+
 func TestParseSpecialOperator(t *testing.T) {
 	t.Parallel()
 

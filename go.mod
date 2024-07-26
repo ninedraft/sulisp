@@ -1,10 +1,11 @@
 module github.com/ninedraft/sulisp
 
-go 1.21.4
+go 1.22.0
 
 require (
+	github.com/ninedraft/itermore v0.1.0
 	github.com/stretchr/testify v1.8.4
-	golang.org/x/exp v0.0.0-20221114191408-850992195362
+	golang.org/x/exp v0.0.0-20231226003508-02704c960a9b
 )
 
 require (

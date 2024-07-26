@@ -36,7 +36,7 @@ type Literal[L LiteralValue] struct {
 
 func (lit *Literal[E]) Equal(other Node) bool {
 	if lit == nil {
-		return other == nil
+		return isEmpty[E](other)
 	}
 
 	o, ok := other.(*Literal[E])
@@ -78,7 +78,7 @@ type Package struct {
 
 func (pkg *Package) Equal(other Node) bool {
 	if pkg == nil {
-		return other == nil
+		return isEmpty[*Package](other)
 	}
 
 	if o, _ := other.(*Package); o != nil {
@@ -116,7 +116,7 @@ type Symbol struct {
 
 func (sym *Symbol) Equal(node Node) bool {
 	if sym == nil {
-		return node == nil
+		return isEmpty[*Symbol](node)
 	}
 
 	if o, _ := node.(*Symbol); o != nil {
@@ -141,7 +141,7 @@ type Keyword struct {
 
 func (kw *Keyword) Equal(node Node) bool {
 	if node == nil {
-		return node == nil
+		return isEmpty[*Keyword](node)
 	}
 
 	if o, _ := node.(*Keyword); o != nil {
@@ -186,7 +186,7 @@ func (sexp *SExp) String() string {
 
 func (sexp *SExp) Equal(other Node) bool {
 	if sexp == nil {
-		return other == nil
+		return isEmpty[*SExp](other)
 	}
 
 	if o, _ := other.(*SExp); o != nil {
@@ -214,7 +214,7 @@ type DotSelector struct {
 
 func (dot *DotSelector) Equal(other Node) bool {
 	if dot == nil {
-		return other == nil
+		return isEmpty[*DotSelector](other)
 	}
 
 	if o, _ := other.(*DotSelector); o != nil {
@@ -297,4 +297,10 @@ func equalSlices[N1, N2 Node](slice []N1, other []N2) bool {
 	return slices.EqualFunc(slice, other, func(n1 N1, n2 N2) bool {
 		return n1.Equal(n2)
 	})
+}
+
+func isEmpty[N comparable](node Node) bool {
+	var empty N
+	n, _ := node.(N)
+	return n == empty
 }
