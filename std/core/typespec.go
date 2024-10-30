@@ -1,7 +1,7 @@
 package core
 
 func Type(value Value) Symbol {
-	switch spec := value.Type().(type) {
+	switch spec := value.Kind().(type) {
 	case interface{ Get(Keyword) (Value, bool) }:
 		t, ok := spec.Get(":type")
 		if !ok {

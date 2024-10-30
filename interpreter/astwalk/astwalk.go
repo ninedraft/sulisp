@@ -18,10 +18,12 @@ var (
 func DefaultEnv() *object.Env {
 	env := object.NewEnv()
 
-	env.Assign("assign", newBuiltin(assign))
-	env.Assign("apply", newBuiltin(builtinApply))
-	env.Assign("namespace", newBuiltin(createNamespace))
-	env.Assign(">", newBuiltin(gt))
+	env.Assign("type-of", newBuiltin(Infer, object.TypeFor(object.ObjType)))
+	env.Assign("assign", newBuiltin(assign, object.TypeFor(TypeArray, TypeAny)))
+	env.Assign("apply", newBuiltin(builtinApply, object.TypeFor(TypeAny)))
+	env.Assign("namespace", newBuiltin(createNamespace, object.TypeFor(object.ObjNamespace)))
+	env.Assign(">", newBuiltin(gt, object.TypeFor(object.ObjBool)))
+
 	env.Assign("array", newBuiltin(func(sexp *ast.SExp, env *object.Env, eval object.Eval) object.Object {
 		elements, err := seq.CollectErr(resolveMany(sexp.Items, env, eval))
 		if err != nil {
@@ -31,13 +33,14 @@ func DefaultEnv() *object.Env {
 		return &object.Array{
 			Elements: elements,
 		}
-	}))
+	}, object.TypeFor(TypeArray)))
 	return env
 }
 
-func newBuiltin(fn object.BuiltinFn) *object.Builtin {
+func newBuiltin(fn object.BuiltinFn, t *object.Type) *object.Builtin {
 	return &object.Builtin{
-		Fn: fn,
+		Fn:   fn,
+		Type: t,
 	}
 }
 
@@ -165,7 +168,7 @@ func apply(fn ast.Node, args []ast.Node, env *object.Env, eval object.Eval) obje
 
 		idx, ok := index.(*object.Primitive[int64])
 		if !ok {
-			return fmtError(args[0].Pos(), "evaluating array index: want a int64, got %s", index.Type())
+			return fmtError(args[0].Pos(), "evaluating array index: want a int64, got %s", index.Kind())
 		}
 
 		if idx.Value < 0 || idx.Value >= int64(len(head.Elements)) {
@@ -211,7 +214,7 @@ func evalIf(op *ast.If, env *object.Env, eval object.Eval) object.Object {
 	case *object.Primitive[bool]:
 		ok = condition.Value
 	default:
-		return fmtError(op.Pos(), "unexpected condition value: %s %q", condition.Type(), condition.Inspect())
+		return fmtError(op.Pos(), "unexpected condition value: %s %q", condition.Kind(), condition.Inspect())
 	}
 
 	if ok {
@@ -239,17 +242,17 @@ func gt(op *ast.SExp, env *object.Env, eval object.Eval) object.Object {
 		}
 
 		if !object.IsPrimitive(arg) {
-			return fmtError(op.Pos(), "only primitive types are supported, got %s", arg.Type())
+			return fmtError(op.Pos(), "only primitive types are supported, got %s", arg.Kind())
 		}
 
-		if prev != nil && prev.Type() != arg.Type() {
-			return fmtError(op.Pos(), ">: type error, want %s, got %s", prev.Type(), arg.Type())
+		if prev != nil && prev.Kind() != arg.Kind() {
+			return fmtError(op.Pos(), ">: type error, want %s, got %s", prev.Kind(), arg.Kind())
 		}
 
 		if prev != nil {
 			gt, ok := arg.(object.Ordered).Compare(prev)
 			if !ok {
-				return fmtError(op.Pos(), "unable to compare %s and %s", prev.Type(), arg.Type())
+				return fmtError(op.Pos(), "unable to compare %s and %s", prev.Kind(), arg.Kind())
 			}
 			result = result && gt < 0
 		}
@@ -283,7 +286,7 @@ func sum(op *ast.SpecialOp, env *object.Env) object.Object {
 			xi += int64(arg.Value)
 		default:
 			return &object.Error{
-				Err: fmt.Errorf("%s: +: unexpected argument %d type %s %q", a.Pos().From, i, arg.Type(), arg.Inspect()),
+				Err: fmt.Errorf("%s: +: unexpected argument %d type %s %q", a.Pos().From, i, arg.Kind(), arg.Inspect()),
 			}
 		}
 	}
@@ -315,7 +318,7 @@ func multiply(op *ast.SpecialOp, env *object.Env, eval object.Eval) object.Objec
 			xi *= int64(arg.Value)
 		default:
 			return &object.Error{
-				Err: fmt.Errorf("%s: *: unexpected argument %d type %s %q", a.Pos().From, i, arg.Type(), arg.Inspect()),
+				Err: fmt.Errorf("%s: *: unexpected argument %d type %s %q", a.Pos().From, i, arg.Kind(), arg.Inspect()),
 			}
 		}
 	}

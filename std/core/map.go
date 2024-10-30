@@ -14,12 +14,12 @@ type Hashable interface {
 
 type HashMap[K Hashable, V Value] map[K]V
 
-func (HashMap[K, V]) Type() Value {
+func (HashMap[K, V]) Kind() Value {
 	var key K
 	var value V
 	return newTypeSpec("core.HashMap", map[Keyword]Value{
-		":key":   key.Type(),
-		":value": value.Type(),
+		":key":   key.Kind(),
+		":value": value.Kind(),
 	})
 }
 

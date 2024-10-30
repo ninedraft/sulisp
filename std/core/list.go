@@ -16,10 +16,10 @@ func ListNew[E Value](values ...E) *List[E] {
 	}
 }
 
-func (*List[E]) Type() Value {
+func (*List[E]) Kind() Value {
 	var elem E
 	return newTypeSpec("core.List", map[Keyword]Value{
-		":elem": elem.Type(),
+		":elem": elem.Kind(),
 	})
 }
 

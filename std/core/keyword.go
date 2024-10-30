@@ -16,7 +16,7 @@ import (
 // It resolves to itself, so you can use it as a map key.
 type Keyword string
 
-func (keyword Keyword) Type() Value {
+func (keyword Keyword) Kind() Value {
 	return newTypeSpec("core.KeyWord", map[Keyword]Value{
 		":name": keyword,
 	})

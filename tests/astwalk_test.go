@@ -94,9 +94,9 @@ func testASTWalk(t *testing.T, input string, want object.Object) {
 func assertEq(t *testing.T, want, got object.Object, msg string, args ...any) {
 	t.Helper()
 
-	if want.Type() != got.Type() || want.Inspect() != got.Inspect() {
+	if want.Kind() != got.Kind() || want.Inspect() != got.Inspect() {
 		t.Errorf(msg, args...)
-		t.Errorf("\tgot(%s) != want(%s)", got.Type(), want.Type())
+		t.Errorf("\tgot(%s) != want(%s)", got.Kind(), want.Kind())
 		t.Errorf("\tgot  %s", got.Inspect())
 		t.Errorf("\twant %s", want.Inspect())
 		return

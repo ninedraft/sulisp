@@ -12,7 +12,7 @@ import (
 // It can be used as a map key if quoted.
 type Symbol string
 
-func (symbol Symbol) Type() Value {
+func (symbol Symbol) Kind() Value {
 	return newTypeSpec("core.Symbol", map[Keyword]Value{
 		":name": symbol,
 	})

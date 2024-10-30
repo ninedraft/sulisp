@@ -12,25 +12,52 @@ import (
 	"github.com/ninedraft/sulisp/language/ast"
 )
 
-type ObjectType string
+type Kind string
 
 const (
-	ObjInteger   ObjectType = "integer"
-	ObjFloat64   ObjectType = "float64"
-	ObjBool      ObjectType = "boolean"
-	ObjString    ObjectType = "string"
-	ObjNull      ObjectType = "null"
-	ObjError     ObjectType = "error"
-	ObjReturn    ObjectType = "return"
-	ObjFunc      ObjectType = "function"
-	ObjBuiltin   ObjectType = "builtin"
-	ObjArray     ObjectType = "array"
-	ObjAST       ObjectType = "ast"
-	ObjNamespace ObjectType = "namespace"
+	ObjType      Kind = "type"
+	ObjKind      Kind = "kind"
+	ObjInteger   Kind = "integer"
+	ObjAny       Kind = "any"
+	ObjFloat64   Kind = "float64"
+	ObjBool      Kind = "boolean"
+	ObjString    Kind = "string"
+	ObjNull      Kind = "null"
+	ObjError     Kind = "error"
+	ObjReturn    Kind = "return"
+	ObjFunc      Kind = "function"
+	ObjBuiltin   Kind = "builtin"
+	ObjArray     Kind = "array"
+	ObjAST       Kind = "ast"
+	ObjNamespace Kind = "namespace"
 )
 
+var Kinds = []Kind{
+	ObjType,
+	ObjKind,
+	ObjInteger,
+	ObjAny,
+	ObjFloat64,
+	ObjBool,
+	ObjString,
+	ObjNull,
+	ObjError,
+	ObjReturn,
+	ObjFunc,
+	ObjBuiltin,
+	ObjArray,
+	ObjAST,
+	ObjNamespace,
+}
+
+func (ot Kind) Kind() Kind { return ObjKind }
+
+func (ot Kind) Inspect() string {
+	return string(ot)
+}
+
 type Object interface {
-	Type() ObjectType
+	Kind() Kind
 	Inspect() string
 }
 
@@ -89,7 +116,7 @@ func (primitive *Primitive[E]) Inspect() string {
 	return fmt.Sprint(primitive.Value)
 }
 
-func (primitive *Primitive[E]) Type() ObjectType {
+func (primitive *Primitive[E]) Kind() Kind {
 	v := any(Primitive[E]{}.Value)
 	switch v.(type) {
 	case string:
@@ -105,11 +132,53 @@ func (primitive *Primitive[E]) Type() ObjectType {
 	}
 }
 
+type Type struct {
+	ObjKind Kind
+	Params  []Type
+}
+
+func TypeFor(kind Kind, paramsKinds ...Kind) *Type {
+	params := make([]Type, 0, len(paramsKinds))
+	for _, param := range paramsKinds {
+		params = append(params, Type{ObjKind: param})
+	}
+
+	return &Type{
+		ObjKind: kind,
+		Params:  params,
+	}
+}
+
+func (ot *Type) Equal(other *Type) bool {
+	return ot.ObjKind == other.ObjKind &&
+		slices.EqualFunc(ot.Params, other.Params, func(a, b Type) bool {
+			return a.Equal(&b)
+		})
+}
+
+func (ot *Type) Kind() Kind {
+	return ObjType
+}
+
+func (ot *Type) Inspect() string {
+	str := &strings.Builder{}
+	str.WriteString("(type ")
+	str.WriteString(ot.ObjKind.Inspect())
+
+	for _, param := range ot.Params {
+		str.WriteString(" ")
+		str.WriteString(param.Inspect())
+	}
+
+	str.WriteString(")")
+	return str.String()
+}
+
 type Namespace struct {
 	Env *Env
 }
 
-func (*Namespace) Type() ObjectType {
+func (*Namespace) Kind() Kind {
 	return ObjNamespace
 }
 
@@ -138,7 +207,7 @@ func (ns *Namespace) Inspect() string {
 
 type Null struct{}
 
-func (Null) Type() ObjectType {
+func (Null) Kind() Kind {
 	return ObjNull
 }
 
@@ -150,7 +219,7 @@ type Error struct {
 	Err error
 }
 
-func (err *Error) Type() ObjectType {
+func (err *Error) Kind() Kind {
 	return ObjError
 }
 
@@ -162,7 +231,7 @@ type Return struct {
 	Value Object
 }
 
-func (ret *Return) Type() ObjectType { return ObjReturn }
+func (ret *Return) Kind() Kind { return ObjReturn }
 
 func (ret *Return) Inspect() string {
 	return ret.Value.Inspect()
@@ -174,7 +243,7 @@ type Function struct {
 	Env        *Env
 }
 
-func (fn *Function) Type() ObjectType {
+func (fn *Function) Kind() Kind {
 	return ObjFunc
 }
 
@@ -202,9 +271,10 @@ type BuiltinFn func(args *ast.SExp, env *Env, eval Eval) Object
 type Builtin struct {
 	Name string
 	Fn   BuiltinFn
+	Type *Type
 }
 
-func (*Builtin) Type() ObjectType { return ObjBuiltin }
+func (*Builtin) Kind() Kind { return ObjBuiltin }
 
 func (builtin *Builtin) Inspect() string {
 	return fmt.Sprintf("<builtin %s>", builtin.Name)
@@ -214,7 +284,7 @@ type Array struct {
 	Elements []Object
 }
 
-func (array *Array) Type() ObjectType {
+func (array *Array) Kind() Kind {
 	return ObjArray
 }
 
@@ -232,7 +302,7 @@ type AST struct {
 	Node ast.Node
 }
 
-func (a *AST) Type() ObjectType { return ObjAST }
+func (a *AST) Kind() Kind { return ObjAST }
 
 func (a *AST) Inspect() string {
 	return a.Node.String()

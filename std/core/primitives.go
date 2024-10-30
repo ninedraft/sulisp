@@ -9,7 +9,7 @@ const Any = Symbol("core.Any")
 
 type Value interface {
 	String() string
-	Type() Value
+	Kind() Value
 
 	encoding.TextMarshaler
 }
@@ -21,7 +21,7 @@ type ValueEq[E Value] interface {
 
 type Int int
 
-func (Int) Type() Value {
+func (Int) Kind() Value {
 	return newTypeSpec("core.Int", map[Keyword]Value{})
 }
 
@@ -57,7 +57,7 @@ func (i *Int) UnmarshalText(data []byte) error {
 
 type Float float64
 
-func (Float) Type() Value {
+func (Float) Kind() Value {
 	return newTypeSpec("core.Float", map[Keyword]Value{})
 }
 
@@ -93,7 +93,7 @@ func (f Float) GoString() string {
 
 type String string
 
-func (String) Type() Value {
+func (String) Kind() Value {
 	return newTypeSpec("core.String", map[Keyword]Value{})
 }
 
@@ -129,7 +129,7 @@ const (
 	False Bool = false
 )
 
-func (b Bool) Type() Value {
+func (b Bool) Kind() Value {
 	return newTypeSpec("core.Bool", map[Keyword]Value{})
 }
 
