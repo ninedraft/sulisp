@@ -8,6 +8,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/ninedraft/sulisp/interpreter/astwalk"
 	"github.com/ninedraft/sulisp/lexer"
 	"github.com/ninedraft/sulisp/parser"
 )
@@ -45,6 +46,8 @@ func Run(out io.Writer, in io.Reader, signals <-chan Signal) error {
 		_, _ = io.WriteString(out, prompt)
 	}
 
+	env := astwalk.DefaultEnv()
+
 	for prompt(); sc.Scan(); prompt() {
 		select {
 		case signal := <-signals:
@@ -80,7 +83,7 @@ func Run(out io.Writer, in io.Reader, signals <-chan Signal) error {
 		case errParse != nil:
 			fmt.Fprintf(out, "ERROR:\n%s\n", errParse)
 		default:
-			fmt.Fprintf(out, "\n\n%s\n", pkg)
+			fmt.Fprintf(out, "\n\n%s\n", astwalk.Eval(pkg, env).Inspect())
 		}
 
 		buf.Reset()

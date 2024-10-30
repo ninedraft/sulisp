@@ -1,0 +1,7 @@
+; (fn 1) -> (*fn () (return 1))
+; (fn (printf "dooza")) -> (*fn () (printf "dooza"))
+; (fn (x) (* x 2)) -> (*fn ())
+(macro fn ((?list params) body) 
+    (let (
+            *params (if (nil? params) (list) params))
+         (*fn `params `body)))
