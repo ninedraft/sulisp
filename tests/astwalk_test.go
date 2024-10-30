@@ -58,6 +58,23 @@ func TestASTWalk(t *testing.T) {
 		`, object.PrimitiveOf[int64](3))
 	})
 
+	t.Run("if-then", func(t *testing.T) {
+		testASTWalk(t, `
+			(if true 1 2)
+		`, object.PrimitiveOf[int64](1))
+	})
+
+	t.Run("if-else", func(t *testing.T) {
+		testASTWalk(t, `
+			(if false 1 2)
+		`, object.PrimitiveOf[int64](2))
+	})
+
+	t.Run("if-else-nil", func(t *testing.T) {
+		testASTWalk(t, `
+			(if false 1)
+		`, object.Null{})
+	})
 }
 
 func testASTWalk(t *testing.T, input string, want object.Object) {

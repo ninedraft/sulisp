@@ -101,8 +101,10 @@ func Eval(node ast.Node, env *object.Env) object.Object {
 			return o
 		}
 		return Null
+	case *ast.If:
+		return evalIf(node, env, Eval)
 	case *ast.SpecialOp:
-		return evalSpecialOp(node, env)
+		return evalSpecialOp(node, env, Eval)
 	case *ast.Package:
 		var result object.Object
 		for _, n := range node.Nodes {
@@ -188,10 +190,10 @@ func isNode[N ast.Node](node ast.Node) bool {
 	return ok
 }
 
-func evalSpecialOp(op *ast.SpecialOp, env *object.Env) object.Object {
+func evalSpecialOp(op *ast.SpecialOp, env *object.Env, eval object.Eval) object.Object {
 	switch op.Op {
 	case "*":
-		return multiply(op, env)
+		return multiply(op, env, eval)
 	case "+":
 		return sum(op, env)
 	default:
@@ -199,6 +201,28 @@ func evalSpecialOp(op *ast.SpecialOp, env *object.Env) object.Object {
 			Err: fmt.Errorf("%s: unexpected operation %q", op.From, op.Op),
 		}
 	}
+}
+
+func evalIf(op *ast.If, env *object.Env, eval object.Eval) object.Object {
+	condition := eval(op.Cond, env)
+
+	var ok bool
+	switch condition := condition.(type) {
+	case *object.Primitive[bool]:
+		ok = condition.Value
+	default:
+		return fmtError(op.Pos(), "unexpected condition value: %s %q", condition.Type(), condition.Inspect())
+	}
+
+	if ok {
+		return eval(op.Then, env)
+	}
+
+	if op.Else == nil {
+		return Null
+	}
+
+	return eval(op.Else, env)
 }
 
 func gt(op *ast.SExp, env *object.Env, eval object.Eval) object.Object {
@@ -271,11 +295,11 @@ func sum(op *ast.SpecialOp, env *object.Env) object.Object {
 	return object.PrimitiveOf(xi)
 }
 
-func multiply(op *ast.SpecialOp, env *object.Env) object.Object {
+func multiply(op *ast.SpecialOp, env *object.Env, eval object.Eval) object.Object {
 	xf, xi := 1.0, int64(1)
 	hasFloats := false
 	for i, a := range op.Items {
-		arg := Eval(a, env)
+		arg := eval(a, env)
 
 		switch arg := arg.(type) {
 		case *object.Error:
