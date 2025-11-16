@@ -80,6 +80,8 @@ func (compiler *Compiler) compileNode(node ast.Node) {
 		compiler.builder.append(bytecode.Const(n.Value))
 	case *ast.Literal[bool]:
 		compiler.builder.append(bytecode.Const(n.Value))
+	case *ast.Keyword:
+		compiler.builder.append(bytecode.Const(n.Value))
 	case *ast.SpecialOp:
 		compiler.compileSpecialOp(n)
 	case *ast.If:
@@ -96,6 +98,8 @@ func (compiler *Compiler) compileNode(node ast.Node) {
 		compiler.compileLet(n)
 	case *ast.SExp:
 		compiler.compileSexpCall(n)
+	case *ast.Match:
+		compiler.compileMatch(n)
 	default:
 		compiler.err = fmt.Errorf("unsupported node %T", node)
 	}
@@ -354,6 +358,108 @@ func (compiler *Compiler) compileIf(if_ *ast.If) {
 
 	compiler.builder.patch(jumpFalse, bytecode.JumpIfFalse(bytecode.PC(elseStart)))
 	compiler.builder.patch(jumpAfterThen, bytecode.Jump(bytecode.PC(end)))
+}
+
+func (compiler *Compiler) compileMatch(match *ast.Match) {
+	if match == nil {
+		return
+	}
+
+	if compiler.scope == nil {
+		compiler.err = fmt.Errorf("match outside of function scope")
+		return
+	}
+
+	if len(match.Cases) == 0 {
+		compiler.err = fmt.Errorf("match requires at least one case")
+		return
+	}
+
+	compiler.compileNode(match.Expr)
+	if compiler.err != nil {
+		return
+	}
+
+	targetSlot := compiler.scope.declareFresh("__match_target")
+	compiler.builder.append(bytecode.StoreLocal(targetSlot))
+
+	var jumpAfterIdxs []int
+
+	for _, mcase := range match.Cases {
+		if len(mcase.Body) == 0 {
+			compiler.err = fmt.Errorf("match case body missing")
+			return
+		}
+
+		jumpAfter := compiler.compileMatchCase(mcase, targetSlot)
+		if compiler.err != nil {
+			return
+		}
+		jumpAfterIdxs = append(jumpAfterIdxs, jumpAfter)
+	}
+
+	compiler.builder.append(bytecode.Null)
+	finalPC := compiler.builder.len()
+	for _, idx := range jumpAfterIdxs {
+		compiler.builder.patch(idx, bytecode.Jump(bytecode.PC(finalPC)))
+	}
+}
+
+func (compiler *Compiler) compileMatchCase(mcase *ast.MatchCase, targetSlot int) int {
+	if compiler.scope == nil {
+		compiler.err = fmt.Errorf("match case requires function scope")
+		return 0
+	}
+
+	var bindingName string
+
+	switch pattern := mcase.Pattern.(type) {
+	case *ast.PatternLiteral:
+		compiler.builder.append(bytecode.LoadLocal(targetSlot))
+		compiler.compileNode(pattern.Value)
+		if compiler.err != nil {
+			return 0
+		}
+		compiler.builder.append(bytecode.Equal)
+	case *ast.PatternWildcard:
+		compiler.builder.append(bytecode.Const(true))
+	case *ast.PatternVariable:
+		compiler.builder.append(bytecode.Const(true))
+		bindingName = pattern.Identifier
+	default:
+		compiler.err = fmt.Errorf("unsupported match pattern %T", mcase.Pattern)
+		return 0
+	}
+
+	jumpFalse := compiler.builder.append(bytecode.JumpIfFalse(0))
+
+	prevScope := compiler.scope
+	caseScope := compiler.scope.child()
+	compiler.scope = caseScope
+
+	if bindingName != "" {
+		compiler.builder.append(bytecode.LoadLocal(targetSlot))
+		slot := compiler.scope.declare(bindingName)
+		compiler.builder.append(bytecode.StoreLocal(slot))
+	}
+
+	for i, node := range mcase.Body {
+		compiler.compileNode(node)
+		if compiler.err != nil {
+			compiler.scope = prevScope
+			return 0
+		}
+		if i < len(mcase.Body)-1 {
+			compiler.builder.append(bytecode.Pop())
+		}
+	}
+
+	jumpAfter := compiler.builder.append(bytecode.Jump(0))
+
+	caseBodyEnd := compiler.builder.len()
+	compiler.builder.patch(jumpFalse, bytecode.JumpIfFalse(bytecode.PC(caseBodyEnd)))
+
+	return jumpAfter
 }
 
 func (compiler *Compiler) compileFunctions() {

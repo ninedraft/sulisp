@@ -554,6 +554,274 @@ func (assign *Assign) String() string {
 	return str.String()
 }
 
+// Pattern represents a match pattern part.
+type Pattern interface {
+	patternNode()
+	Equal(Pattern) bool
+	Clone() Pattern
+	String() string
+}
+
+type PatternLiteral struct {
+	PosRange
+	Value Node
+}
+
+func (*PatternLiteral) patternNode() {}
+
+func (lit *PatternLiteral) Equal(other Pattern) bool {
+	if lit == nil {
+		return other == nil
+	}
+	if o, ok := other.(*PatternLiteral); ok {
+		return equalNodes(lit.Value, o.Value)
+	}
+	return false
+}
+
+func (lit *PatternLiteral) Clone() Pattern {
+	if lit == nil {
+		return nil
+	}
+	clone := *lit
+	clone.Value = Clone(lit.Value)
+	return &clone
+}
+
+func (lit *PatternLiteral) String() string {
+	if lit == nil || lit.Value == nil {
+		return "nil-literal-pattern"
+	}
+	return lit.Value.String()
+}
+
+type PatternVariable struct {
+	PosRange
+	Identifier string
+}
+
+func (*PatternVariable) patternNode() {}
+
+func (varPat *PatternVariable) Equal(other Pattern) bool {
+	if varPat == nil {
+		return other == nil
+	}
+	if o, ok := other.(*PatternVariable); ok {
+		return varPat.Identifier == o.Identifier
+	}
+	return false
+}
+
+func (varPat *PatternVariable) Clone() Pattern {
+	if varPat == nil {
+		return nil
+	}
+	clone := *varPat
+	return &clone
+}
+
+func (varPat *PatternVariable) String() string {
+	if varPat == nil {
+		return "nil-variable-pattern"
+	}
+	return varPat.Identifier
+}
+
+type PatternWildcard struct {
+	PosRange
+}
+
+func (*PatternWildcard) patternNode() {}
+
+func (wildcard *PatternWildcard) Equal(other Pattern) bool {
+	_, ok := other.(*PatternWildcard)
+	return ok
+}
+
+func (wildcard *PatternWildcard) Clone() Pattern {
+	if wildcard == nil {
+		return nil
+	}
+	clone := *wildcard
+	return &clone
+}
+
+func (wildcard *PatternWildcard) String() string {
+	return "_"
+}
+
+type PatternSExp struct {
+	PosRange
+	Items []Pattern
+}
+
+func (*PatternSExp) patternNode() {}
+
+func (sexp *PatternSExp) Equal(other Pattern) bool {
+	if sexp == nil {
+		return other == nil
+	}
+	o, ok := other.(*PatternSExp)
+	if !ok {
+		return false
+	}
+	if len(sexp.Items) != len(o.Items) {
+		return false
+	}
+	for i := range sexp.Items {
+		if !sexp.Items[i].Equal(o.Items[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (sexp *PatternSExp) Clone() Pattern {
+	if sexp == nil {
+		return nil
+	}
+	clone := *sexp
+	clone.Items = clonePatternSlice(sexp.Items)
+	return &clone
+}
+
+func (sexp *PatternSExp) String() string {
+	if sexp == nil {
+		return "nil-sexpr-pattern"
+	}
+	str := &strings.Builder{}
+	str.WriteRune('(')
+	for i, item := range sexp.Items {
+		if i > 0 {
+			str.WriteRune(' ')
+		}
+		str.WriteString(item.String())
+	}
+	str.WriteRune(')')
+	return str.String()
+}
+
+func clonePatternSlice(slice []Pattern) []Pattern {
+	clone := make([]Pattern, len(slice))
+	for i, item := range slice {
+		if item != nil {
+			clone[i] = item.Clone()
+		}
+	}
+	return clone
+}
+
+type MatchCase struct {
+	PosRange
+	Pattern Pattern
+	Body    []Node
+}
+
+func (mc *MatchCase) Clone() *MatchCase {
+	if mc == nil {
+		return nil
+	}
+	clone := *mc
+	clone.Pattern = mc.Pattern.Clone()
+	clone.Body = cloneSlice(mc.Body)
+	return &clone
+}
+
+func (mc *MatchCase) Equal(other *MatchCase) bool {
+	if mc == nil {
+		return other == nil
+	}
+	if other == nil {
+		return false
+	}
+	if !mc.Pattern.Equal(other.Pattern) {
+		return false
+	}
+	return equalSlices(mc.Body, other.Body)
+}
+
+func (mc *MatchCase) String() string {
+	if mc == nil {
+		return "nil-match-case"
+	}
+	str := &strings.Builder{}
+	str.WriteRune('(')
+	str.WriteString(mc.Pattern.String())
+	for _, item := range mc.Body {
+		str.WriteRune(' ')
+		str.WriteString(item.String())
+	}
+	str.WriteRune(')')
+	return str.String()
+}
+
+type Match struct {
+	PosRange
+	Expr  Node
+	Cases []*MatchCase
+}
+
+func (match *Match) Name() string {
+	return "match"
+}
+
+func (match *Match) String() string {
+	if match == nil {
+		return "nil-match"
+	}
+	str := &strings.Builder{}
+	str.WriteString("(match ")
+	if match.Expr != nil {
+		str.WriteString(match.Expr.String())
+	}
+	for _, c := range match.Cases {
+		str.WriteRune(' ')
+		str.WriteString(c.String())
+	}
+	str.WriteRune(')')
+	return str.String()
+}
+
+func (match *Match) Equal(other Node) bool {
+	if match == nil {
+		return other == nil
+	}
+	o, ok := other.(*Match)
+	if !ok {
+		return false
+	}
+	if !equalNodes(match.Expr, o.Expr) {
+		return false
+	}
+	if len(match.Cases) != len(o.Cases) {
+		return false
+	}
+	for i := range match.Cases {
+		if !match.Cases[i].Equal(o.Cases[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (match *Match) Clone() Node {
+	if match == nil {
+		return nil
+	}
+	clone := *match
+	clone.Expr = Clone(match.Expr)
+	clone.Cases = cloneMatchCaseSlice(match.Cases)
+	return &clone
+}
+
+func cloneMatchCaseSlice(slice []*MatchCase) []*MatchCase {
+	clone := make([]*MatchCase, len(slice))
+	for i, item := range slice {
+		clone[i] = item.Clone()
+	}
+	return clone
+}
+
 func equalNodes(a, b Node) bool {
 	if a == nil && b == nil {
 		return true

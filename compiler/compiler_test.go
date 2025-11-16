@@ -42,6 +42,66 @@ func TestCompileIf(t *testing.T) {
 	require.Equal(t, int64(1), popInt(t, vm))
 }
 
+func TestCompileMatchLiteral(t *testing.T) {
+	src := `
+		(fn choose (x)
+			(match x
+				(1 10)
+				(_ 20)))
+
+		(choose 1)
+	`
+
+	vm := runSource(t, src)
+	require.Equal(t, int64(10), popInt(t, vm))
+}
+
+func TestCompileMatchDefaultNull(t *testing.T) {
+	src := `
+		(fn choose (x)
+			(match x
+				(1 10)
+				(2 20)))
+
+		(choose 3)
+	`
+
+	vm := runSource(t, src)
+
+	result, ok := vm.Stack.Pop()
+	require.True(t, ok, "stack should contain a result")
+	_, isNull := result.(*object.Null)
+	require.True(t, isNull, "match should return null when no case matches")
+}
+
+func TestCompileMatchVariableBinding(t *testing.T) {
+	src := `
+		(fn choose (x)
+			(match x
+				(x (+ x 1))
+				(_ 0)))
+
+		(choose 5)
+	`
+
+	vm := runSource(t, src)
+	require.Equal(t, int64(6), popInt(t, vm))
+}
+
+func TestCompileMatchLiteralPrecedence(t *testing.T) {
+	src := `
+		(fn choose (x)
+			(match x
+				(1 100)
+				(_ 200)))
+
+		(choose 2)
+	`
+
+	vm := runSource(t, src)
+	require.Equal(t, int64(200), popInt(t, vm))
+}
+
 func TestCompileFunctionCall(t *testing.T) {
 	fn := &ast.Function{
 		Identifier: "square",

@@ -1,6 +1,8 @@
 package parser
 
 import (
+	"fmt"
+
 	"github.com/ninedraft/sulisp/language/ast"
 )
 
@@ -13,6 +15,7 @@ var isSpecial = map[string]bool{
 	"while":  true,
 	"begin":  true,
 	"let":    true,
+	"match":  true,
 }
 
 type operatorDef struct {
@@ -64,6 +67,8 @@ func (parser *Parser) buildSpecial(sexp *ast.SExp) ast.Node {
 		return parser.buildSequence(sexp)
 	case "let":
 		return parser.buildLet(sexp)
+	case "match":
+		return parser.buildMatch(sexp)
 	}
 
 	if sys, ok := specialOperatorDefs[head.Value]; ok {
@@ -196,6 +201,95 @@ func (parser *Parser) buildLet(sexp *ast.SExp) ast.Node {
 		Bindings: bindings,
 		Body:     body,
 	}
+}
+
+func (parser *Parser) buildMatch(sexp *ast.SExp) ast.Node {
+	if len(sexp.Items) < 3 {
+		parser.errorf("match requires expression and at least one case")
+		return nil
+	}
+
+	expr := sexp.Items[1]
+	if expr == nil {
+		parser.errorf("match subject missing")
+		return nil
+	}
+
+	cases := make([]*ast.MatchCase, 0, len(sexp.Items)-2)
+	for i, item := range sexp.Items[2:] {
+		caseIdx := i + 1
+		caseExpr, ok := item.(*ast.SExp)
+		if !ok {
+			parser.errorf("match case %d must be a list", caseIdx)
+			return nil
+		}
+
+		if len(caseExpr.Items) < 2 {
+			parser.errorf("match case %d requires pattern and body", caseIdx)
+			return nil
+		}
+
+		patternNode := caseExpr.Items[0]
+		pattern, err := parser.buildPattern(patternNode)
+		if err != nil {
+			parser.errorf("match case %d: %w", caseIdx, err)
+			return nil
+		}
+
+		body := caseExpr.Items[1:]
+		if len(body) == 0 {
+			parser.errorf("match case %d body missing", caseIdx)
+			return nil
+		}
+
+		cases = append(cases, &ast.MatchCase{
+			PosRange: parser.posRange(),
+			Pattern:  pattern,
+			Body:     body,
+		})
+	}
+
+	return &ast.Match{
+		PosRange: parser.posRange(),
+		Expr:     expr,
+		Cases:    cases,
+	}
+}
+
+func (parser *Parser) buildPattern(node ast.Node) (ast.Pattern, error) {
+	if node == nil {
+		return nil, fmt.Errorf("pattern missing")
+	}
+
+	switch v := node.(type) {
+	case *ast.Literal[int64]:
+		return &ast.PatternLiteral{PosRange: v.Pos(), Value: v}, nil
+	case *ast.Literal[float64]:
+		return &ast.PatternLiteral{PosRange: v.Pos(), Value: v}, nil
+	case *ast.Literal[string]:
+		return &ast.PatternLiteral{PosRange: v.Pos(), Value: v}, nil
+	case *ast.Literal[bool]:
+		return &ast.PatternLiteral{PosRange: v.Pos(), Value: v}, nil
+	case *ast.Keyword:
+		return &ast.PatternLiteral{PosRange: v.Pos(), Value: v}, nil
+	case *ast.Symbol:
+		if v.Value == "_" {
+			return &ast.PatternWildcard{PosRange: v.Pos()}, nil
+		}
+		return &ast.PatternVariable{PosRange: v.Pos(), Identifier: v.Value}, nil
+	case *ast.SExp:
+		items := make([]ast.Pattern, 0, len(v.Items))
+		for _, child := range v.Items {
+			pat, err := parser.buildPattern(child)
+			if err != nil {
+				return nil, err
+			}
+			items = append(items, pat)
+		}
+		return &ast.PatternSExp{PosRange: v.Pos(), Items: items}, nil
+	}
+
+	return nil, fmt.Errorf("unsupported pattern: %T", node)
 }
 
 func (parser *Parser) buildIf(sexp *ast.SExp) *ast.If {

@@ -179,6 +179,68 @@ func TestParseCond(t *testing.T) {
 	assertEqual(t, want, node, "parsed if")
 }
 
+func TestParseMatch(t *testing.T) {
+	t.Parallel()
+
+	pkg := assertParse(t, `
+		(match value
+			((_)
+				1)
+			((a b)
+				(+ a b)))`)
+
+	node := requireItem[*ast.Match](t, pkg.Nodes, 0, "parsed match")
+	assertEqual(t, &ast.Symbol{Value: "value"}, node.Expr, "match subject")
+	require.Len(t, node.Cases, 2, "match case count")
+
+	first := node.Cases[0]
+	require.Equal(t, 1, len(first.Body), "first case body count")
+	assertEqual(t, &ast.Literal[int64]{Value: 1}, first.Body[0], "first case body")
+	if pat, ok := first.Pattern.(*ast.PatternSExp); ok {
+		require.Len(t, pat.Items, 1, "first pattern items")
+		if _, ok := pat.Items[0].(*ast.PatternWildcard); !ok {
+			t.Fatalf("expected wildcard pattern, got %T", pat.Items[0])
+		}
+	} else {
+		t.Fatalf("expected s-expression pattern, got %T", first.Pattern)
+	}
+
+	second := node.Cases[1]
+	require.Equal(t, 1, len(second.Body), "second case body count")
+	assertEqual(t, &ast.SpecialOp{
+		Op: "+",
+		Items: []ast.Node{
+			&ast.Symbol{Value: "a"},
+			&ast.Symbol{Value: "b"},
+		},
+	}, second.Body[0], "second case body")
+	if pat, ok := second.Pattern.(*ast.PatternSExp); ok {
+		require.Len(t, pat.Items, 2, "second pattern items")
+		require.Equal(t, "a", pat.Items[0].(*ast.PatternVariable).Identifier)
+		require.Equal(t, "b", pat.Items[1].(*ast.PatternVariable).Identifier)
+	} else {
+		t.Fatalf("expected s-expression pattern, got %T", second.Pattern)
+	}
+}
+
+func TestParseMatchKeywordPattern(t *testing.T) {
+	t.Parallel()
+
+	pkg := assertParse(t, `
+		(match :foo
+			(:foo 1)
+			(_ 2))`)
+
+	node := requireItem[*ast.Match](t, pkg.Nodes, 0, "parsed match")
+	require.Len(t, node.Cases, 2)
+
+	first := node.Cases[0]
+	lit, ok := first.Pattern.(*ast.PatternLiteral)
+	require.True(t, ok, "expected literal pattern")
+	require.IsType(t, &ast.Keyword{}, lit.Value)
+	require.Equal(t, ":foo", lit.Value.(*ast.Keyword).Value)
+}
+
 func TestParseSpecialOperator(t *testing.T) {
 	t.Parallel()
 
