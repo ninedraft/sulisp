@@ -13,6 +13,7 @@ import (
 )
 
 func TestASTWalk(t *testing.T) {
+	t.Skip("astwalk interpreter retired; focus remains on compiler path")
 	t.Run("assign", func(t *testing.T) {
 		testASTWalk(t, `
 			(assign a 1)
