@@ -238,6 +238,45 @@ func TestParseBegin(t *testing.T) {
 	}, seq.Items[1], "sequence second item")
 }
 
+func TestParseLet(t *testing.T) {
+	t.Parallel()
+
+	pkg := assertParse(t, `
+		(let ((x 1) (y (+ x 2)))
+			(+ x y)
+			(assign x 5))
+	`)
+
+	let := requireItem[*ast.Let](t, pkg.Nodes, 0, "parsed let")
+	require.Len(t, let.Bindings, 2, "binding count")
+	assertEqual(t, &ast.Binding{
+		Identifier: "x",
+		Value:      &ast.Literal[int64]{Value: 1},
+	}, let.Bindings[0], "first binding")
+	assertEqual(t, &ast.Binding{
+		Identifier: "y",
+		Value: &ast.SpecialOp{
+			Op: "+",
+			Items: []ast.Node{
+				&ast.Symbol{Value: "x"},
+				&ast.Literal[int64]{Value: 2},
+			},
+		},
+	}, let.Bindings[1], "second binding")
+	require.Len(t, let.Body, 2, "let body count")
+	assertEqual(t, &ast.SpecialOp{
+		Op: "+",
+		Items: []ast.Node{
+			&ast.Symbol{Value: "x"},
+			&ast.Symbol{Value: "y"},
+		},
+	}, let.Body[0], "first body expression")
+	assertEqual(t, &ast.Assign{
+		Target: &ast.Symbol{Value: "x"},
+		Value:  &ast.Literal[int64]{Value: 5},
+	}, let.Body[1], "second body expression")
+}
+
 func TestParseWhile(t *testing.T) {
 	t.Parallel()
 

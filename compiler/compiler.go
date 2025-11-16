@@ -92,6 +92,8 @@ func (compiler *Compiler) compileNode(node ast.Node) {
 		compiler.compileSequence(n)
 	case *ast.While:
 		compiler.compileWhile(n)
+	case *ast.Let:
+		compiler.compileLet(n)
 	case *ast.SExp:
 		compiler.compileSexpCall(n)
 	default:
@@ -137,6 +139,42 @@ func (compiler *Compiler) compileWhile(loop *ast.While) {
 	end := compiler.builder.len()
 	compiler.builder.patch(exitJump, bytecode.JumpIfFalse(bytecode.PC(end)))
 	compiler.builder.append(bytecode.Null)
+}
+
+func (compiler *Compiler) compileLet(let *ast.Let) {
+	if let == nil {
+		return
+	}
+
+	if compiler.scope == nil {
+		compiler.err = fmt.Errorf("let outside of function scope")
+		return
+	}
+
+	prev := compiler.scope
+	compiler.scope = compiler.scope.child()
+	defer func() { compiler.scope = prev }()
+
+	for _, binding := range let.Bindings {
+		compiler.compileNode(binding.Value)
+		if compiler.err != nil {
+			return
+		}
+
+		slot := compiler.scope.declareFresh(binding.Identifier)
+		compiler.builder.append(bytecode.StoreLocal(slot))
+	}
+
+	for i, item := range let.Body {
+		compiler.compileNode(item)
+		if compiler.err != nil {
+			return
+		}
+
+		if i < len(let.Body)-1 {
+			compiler.builder.append(bytecode.Pop())
+		}
+	}
 }
 
 func (compiler *Compiler) registerFunction(fn *ast.Function) {
@@ -372,15 +410,25 @@ type pendingCall struct {
 }
 
 type Scope struct {
-	parent *Scope
-	slots  map[string]int
-	next   int
+	parent  *Scope
+	slots   map[string]int
+	counter *int
 }
 
 func newScope(parent *Scope) *Scope {
+	if parent == nil {
+		counter := 0
+		return &Scope{
+			parent:  nil,
+			slots:   map[string]int{},
+			counter: &counter,
+		}
+	}
+
 	return &Scope{
-		parent: parent,
-		slots:  map[string]int{},
+		parent:  parent,
+		slots:   map[string]int{},
+		counter: parent.counter,
 	}
 }
 
@@ -389,9 +437,14 @@ func (scope *Scope) declare(name string) int {
 		return slot
 	}
 
-	slot := scope.next
+	slot := scope.newSlot()
 	scope.slots[name] = slot
-	scope.next++
+	return slot
+}
+
+func (scope *Scope) declareFresh(name string) int {
+	slot := scope.newSlot()
+	scope.slots[name] = slot
 	return slot
 }
 
@@ -407,6 +460,20 @@ func (scope *Scope) resolve(name string) (int, bool) {
 		return scope.parent.resolve(name)
 	}
 	return 0, false
+}
+
+func (scope *Scope) child() *Scope {
+	return &Scope{
+		parent:  scope,
+		slots:   map[string]int{},
+		counter: scope.counter,
+	}
+}
+
+func (scope *Scope) newSlot() int {
+	slot := *scope.counter
+	*scope.counter++
+	return slot
 }
 
 type builder struct {

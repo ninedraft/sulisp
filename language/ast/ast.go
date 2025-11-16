@@ -291,6 +291,102 @@ func (seq *Sequence) Clone() Node {
 	return &clone
 }
 
+type Binding struct {
+	PosRange
+	Identifier string
+	Value      Node
+}
+
+func (binding *Binding) Name() string { return "binding" }
+
+func (binding *Binding) Equal(other Node) bool {
+	if binding == nil {
+		return other == nil
+	}
+
+	o, ok := other.(*Binding)
+	if !ok {
+		return false
+	}
+
+	return binding.Identifier == o.Identifier && equalNodes(binding.Value, o.Value)
+}
+
+func (binding *Binding) Clone() Node {
+	if binding == nil {
+		return nil
+	}
+
+	clone := *binding
+	clone.Value = Clone(binding.Value)
+	return &clone
+}
+
+func (binding *Binding) String() string {
+	if binding == nil {
+		return "nil-binding"
+	}
+
+	return "(" + binding.Identifier + " " + binding.Value.String() + ")"
+}
+
+type Let struct {
+	PosRange
+	Bindings []*Binding
+	Body     []Node
+}
+
+func (let *Let) Name() string {
+	return "let"
+}
+
+func (let *Let) String() string {
+	if let == nil {
+		return "nil-let"
+	}
+
+	str := &strings.Builder{}
+	str.WriteString("(let (")
+	for i, binding := range let.Bindings {
+		if i > 0 {
+			str.WriteRune(' ')
+		}
+		str.WriteString(binding.String())
+	}
+	str.WriteString(")")
+	for _, item := range let.Body {
+		str.WriteRune(' ')
+		str.WriteString(item.String())
+	}
+	str.WriteString(")")
+	return str.String()
+}
+
+func (let *Let) Equal(other Node) bool {
+	if let == nil {
+		return other == nil
+	}
+
+	o, ok := other.(*Let)
+	if !ok {
+		return false
+	}
+
+	return equalSlices(let.Bindings, o.Bindings) &&
+		equalSlices(let.Body, o.Body)
+}
+
+func (let *Let) Clone() Node {
+	if let == nil {
+		return nil
+	}
+
+	clone := *let
+	clone.Bindings = cloneSlice(let.Bindings)
+	clone.Body = cloneSlice(let.Body)
+	return &clone
+}
+
 type While struct {
 	PosRange
 	Cond Node

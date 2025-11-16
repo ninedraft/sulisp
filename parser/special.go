@@ -12,6 +12,7 @@ var isSpecial = map[string]bool{
 	"assign": true,
 	"while":  true,
 	"begin":  true,
+	"let":    true,
 }
 
 type operatorDef struct {
@@ -61,6 +62,8 @@ func (parser *Parser) buildSpecial(sexp *ast.SExp) ast.Node {
 		return parser.buildWhile(sexp)
 	case "begin":
 		return parser.buildSequence(sexp)
+	case "let":
+		return parser.buildLet(sexp)
 	}
 
 	if sys, ok := specialOperatorDefs[head.Value]; ok {
@@ -135,6 +138,63 @@ func (parser *Parser) buildAssign(sexp *ast.SExp) ast.Node {
 		PosRange: parser.posRange(),
 		Target:   target,
 		Value:    value,
+	}
+}
+
+func (parser *Parser) buildLet(sexp *ast.SExp) ast.Node {
+	if len(sexp.Items) < 3 {
+		parser.errorf("let requires bindings and body")
+		return nil
+	}
+
+	bindingsExpr, ok := sexp.Items[1].(*ast.SExp)
+	if !ok {
+		parser.errorf("let bindings must be a list")
+		return nil
+	}
+
+	if len(bindingsExpr.Items) == 0 {
+		parser.errorf("let requires at least one binding")
+		return nil
+	}
+
+	bindings := make([]*ast.Binding, 0, len(bindingsExpr.Items))
+	for _, item := range bindingsExpr.Items {
+		entry, ok := item.(*ast.SExp)
+		if !ok || len(entry.Items) != 2 {
+			parser.errorf("let binding must be (name value)")
+			return nil
+		}
+
+		name, ok := entry.Items[0].(*ast.Symbol)
+		if !ok {
+			parser.errorf("let binding name must be symbol")
+			return nil
+		}
+
+		value := entry.Items[1]
+		if value == nil {
+			parser.errorf("let binding value missing")
+			return nil
+		}
+
+		bindings = append(bindings, &ast.Binding{
+			PosRange:   parser.posRange(),
+			Identifier: name.Value,
+			Value:      value,
+		})
+	}
+
+	body := sexp.Items[2:]
+	if len(body) == 0 {
+		parser.errorf("let body missing")
+		return nil
+	}
+
+	return &ast.Let{
+		PosRange: parser.posRange(),
+		Bindings: bindings,
+		Body:     body,
 	}
 }
 

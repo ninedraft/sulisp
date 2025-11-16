@@ -117,6 +117,34 @@ func TestCompileFunctionWithLocals(t *testing.T) {
 	require.Equal(t, int64(6), popInt(t, vm))
 }
 
+func TestCompileLetCreatesFreshSlot(t *testing.T) {
+	src := `
+		(fn double (x)
+			(let ((x (+ x 1)))
+				(+ x 2)))
+
+		(double 5)
+	`
+
+	vm := runSource(t, src)
+	require.Equal(t, int64(8), popInt(t, vm))
+}
+
+func TestCompileLetRestoresOuterVariable(t *testing.T) {
+	src := `
+		(fn shadow (x)
+			(begin
+				(let ((x (+ x 1)))
+					x)
+				x))
+
+		(shadow 3)
+	`
+
+	vm := runSource(t, src)
+	require.Equal(t, int64(3), popInt(t, vm))
+}
+
 func runCompiled(t *testing.T, pkg *ast.Package) *bytecode.VM {
 	t.Helper()
 
@@ -152,4 +180,15 @@ func popInt(t *testing.T, vm *bytecode.VM) int64 {
 	require.True(t, ok, "expected primitive int")
 
 	return prim.Value
+}
+
+func runSource(t *testing.T, src string) *bytecode.VM {
+	t.Helper()
+
+	lex := lexer.NewLexer("test", strings.NewReader(src))
+	p := parser.New(lex)
+	pkg, err := p.Parse()
+	require.NoError(t, err)
+
+	return runCompiled(t, pkg)
 }
