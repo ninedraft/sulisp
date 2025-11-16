@@ -211,6 +211,38 @@ func TestParseSpecialOperator(t *testing.T) {
 	assertEqual(t, want, pkg, "parsed special operators")
 }
 
+func TestParseFunction(t *testing.T) {
+	t.Parallel()
+
+	pkg := assertParse(t, `
+		(fn square (x)
+			(* x x))
+	`)
+
+	fn := requireItem[*ast.Function](t, pkg.Nodes, 0, "parsed function")
+	require.Equal(t, "square", fn.Identifier, "function name")
+	require.Len(t, fn.Parameters, 1, "function parameters")
+	assertEqual(t, &ast.SpecialOp{
+		Op: "*",
+		Items: []ast.Node{
+			&ast.Symbol{Value: "x"},
+			&ast.Symbol{Value: "x"},
+		},
+	}, fn.Body, "function body")
+}
+
+func TestParseAssign(t *testing.T) {
+	t.Parallel()
+
+	pkg := assertParse(t, `
+		(assign total 5)
+	`)
+
+	assign := requireItem[*ast.Assign](t, pkg.Nodes, 0, "parsed assign")
+	require.Equal(t, "total", assign.Target.Value, "assign target")
+	assertEqual(t, &ast.Literal[int64]{Value: 5}, assign.Value, "assign value")
+}
+
 func TestParseDotSelector(t *testing.T) {
 	t.Parallel()
 

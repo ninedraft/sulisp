@@ -193,12 +193,7 @@ func (parser *Parser) parseApply() ast.Node {
 	head := sexp.Items[0]
 
 	symbol, _ := head.(*ast.Symbol)
-	if symbol == nil {
-		// not a special form
-		return sexp
-	}
-
-	if isSpecial[symbol.Value] {
+	if symbol != nil && isSpecial[symbol.Value] {
 		return parser.buildSpecial(sexp)
 	}
 

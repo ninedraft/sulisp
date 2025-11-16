@@ -23,6 +23,13 @@ func Const[E object.PrimitiveTypes](value E) Command {
 	}
 }
 
+var Null = Command{
+	Repr: "Null",
+	Execute: func(vm *VM) {
+		vm.Stack.Push(&object.Null{})
+	},
+}
+
 var Add = Command{
 	Repr: "Add",
 	Execute: func(vm *VM) {

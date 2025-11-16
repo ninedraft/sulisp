@@ -9,7 +9,9 @@ var isSpecial = map[string]bool{
 	"import-go": true,
 	"if":        true, "cond": true,
 	"+": true, "-": true, "*": true, "/": true,
-	".": true,
+	".":      true,
+	"fn":     true,
+	"assign": true,
 }
 
 var specialOperators = map[string]bool{
@@ -34,6 +36,10 @@ func (parser *Parser) buildSpecial(sexp *ast.SExp) ast.Node {
 		return parser.buildIf(sexp)
 	case ".":
 		return parser.buildDotSelector(sexp)
+	case "fn":
+		return parser.buildFunction(sexp)
+	case "assign":
+		return parser.buildAssign(sexp)
 	}
 
 	if specialOperators[head.Value] {
@@ -42,6 +48,73 @@ func (parser *Parser) buildSpecial(sexp *ast.SExp) ast.Node {
 
 	parser.errorf("unknown special form %s", head.Value)
 	return nil
+}
+
+func (parser *Parser) buildFunction(sexp *ast.SExp) ast.Node {
+	if len(sexp.Items) < 4 {
+		parser.errorf("fn form requires identifier, params, and body")
+		return nil
+	}
+
+	name, ok := sexp.Items[1].(*ast.Symbol)
+	if !ok {
+		parser.errorf("fn name must be a symbol")
+		return nil
+	}
+
+	params, ok := sexp.Items[2].(*ast.SExp)
+	if !ok {
+		parser.errorf("fn params must be a list")
+		return nil
+	}
+
+	paramSymbols := make([]*ast.Symbol, 0, len(params.Items))
+	for _, item := range params.Items {
+		sym, ok := item.(*ast.Symbol)
+		if !ok {
+			parser.errorf("fn params must be symbols")
+			return nil
+		}
+		paramSymbols = append(paramSymbols, sym)
+	}
+
+	body := sexp.Items[3]
+	if body == nil {
+		parser.errorf("fn body missing")
+		return nil
+	}
+
+	return &ast.Function{
+		PosRange:   parser.posRange(),
+		Identifier: name.Value,
+		Parameters: paramSymbols,
+		Body:       body,
+	}
+}
+
+func (parser *Parser) buildAssign(sexp *ast.SExp) ast.Node {
+	if len(sexp.Items) != 3 {
+		parser.errorf("assign requires target and value")
+		return nil
+	}
+
+	target, ok := sexp.Items[1].(*ast.Symbol)
+	if !ok {
+		parser.errorf("assign target must be symbol")
+		return nil
+	}
+
+	value := sexp.Items[2]
+	if value == nil {
+		parser.errorf("assign value missing")
+		return nil
+	}
+
+	return &ast.Assign{
+		PosRange: parser.posRange(),
+		Target:   target,
+		Value:    value,
+	}
 }
 
 func (parser *Parser) buildIf(sexp *ast.SExp) *ast.If {

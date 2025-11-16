@@ -244,6 +244,131 @@ func (dot *DotSelector) Clone() Node {
 	return clone
 }
 
+type Function struct {
+	PosRange
+	Identifier string
+	Parameters []*Symbol
+	Body       Node
+}
+
+func (fn *Function) Name() string {
+	return "function"
+}
+
+func (fn *Function) Equal(other Node) bool {
+	if fn == nil {
+		return other == nil
+	}
+
+	o, ok := other.(*Function)
+	if !ok {
+		return false
+	}
+
+	return fn.Identifier == o.Identifier &&
+		equalSlices(fn.Parameters, o.Parameters) &&
+		equalNodes(fn.Body, o.Body)
+}
+
+func (fn *Function) Clone() Node {
+	if fn == nil {
+		return nil
+	}
+
+	clone := *fn
+	clone.Parameters = cloneSlice(fn.Parameters)
+	clone.Body = Clone(fn.Body)
+	return &clone
+}
+
+func (fn *Function) String() string {
+	if fn == nil {
+		return "nil-function"
+	}
+
+	str := &strings.Builder{}
+	str.WriteString("(fn ")
+	str.WriteString(fn.Identifier)
+	str.WriteString(" (")
+	for i, param := range fn.Parameters {
+		if i > 0 {
+			str.WriteString(" ")
+		}
+		str.WriteString(param.String())
+	}
+	str.WriteString(") ")
+	if fn.Body != nil {
+		str.WriteString(fn.Body.String())
+	}
+	str.WriteString(")")
+	return str.String()
+}
+
+type Assign struct {
+	PosRange
+	Target *Symbol
+	Value  Node
+}
+
+func (assign *Assign) Name() string {
+	return "assign"
+}
+
+func (assign *Assign) Equal(other Node) bool {
+	if assign == nil {
+		return other == nil
+	}
+
+	o, ok := other.(*Assign)
+	if !ok {
+		return false
+	}
+
+	return equalNodes(assign.Target, o.Target) &&
+		equalNodes(assign.Value, o.Value)
+}
+
+func (assign *Assign) Clone() Node {
+	if assign == nil {
+		return nil
+	}
+
+	clone := *assign
+	if assign.Target != nil {
+		clone.Target = Clone(assign.Target)
+	}
+	clone.Value = Clone(assign.Value)
+	return &clone
+}
+
+func (assign *Assign) String() string {
+	if assign == nil {
+		return "nil-assign"
+	}
+
+	str := &strings.Builder{}
+	str.WriteString("(assign ")
+	if assign.Target != nil {
+		str.WriteString(assign.Target.String())
+	}
+	str.WriteString(" ")
+	if assign.Value != nil {
+		str.WriteString(assign.Value.String())
+	}
+	str.WriteString(")")
+	return str.String()
+}
+
+func equalNodes(a, b Node) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return a.Equal(b)
+}
+
 func Clone[E Node](node E) E {
 	n := Node(node)
 
