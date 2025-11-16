@@ -13,11 +13,12 @@ type Frame struct {
 }
 
 type VM struct {
-	Stack     stack.Stack[object.Object]
-	Tape      []Command
-	PC        PC
-	Err       error
-	CallStack stack.Stack[*Frame]
+	Stack       stack.Stack[object.Object]
+	Tape        []Command
+	PC          PC
+	Err         error
+	CallStack   stack.Stack[*Frame]
+	hostEffects *HostEffectRegistry
 }
 
 type Command struct {
@@ -31,6 +32,20 @@ func NewVM(tape []Command) *VM {
 	}
 	vm.CallStack.Push(&Frame{})
 	return vm
+}
+
+func (vm *VM) RegisterHostEffect(effect, operation string, handler HostEffectFn) error {
+	if vm.hostEffects == nil {
+		vm.hostEffects = NewHostEffectRegistry()
+	}
+	return vm.hostEffects.Register(effect, operation, handler)
+}
+
+func (vm *VM) lookupHostEffect(effect, operation string) (HostEffectFn, bool) {
+	if vm.hostEffects == nil {
+		return nil, false
+	}
+	return vm.hostEffects.Lookup(effect, operation)
 }
 
 func (vm *VM) Run() {

@@ -16,10 +16,35 @@ type Compiler struct {
 	err           error
 	effectStack   []effectContext
 	currentFunc   *functionInfo
+	hostEffects   map[string]hostEffectMeta
 }
 
 func New() *Compiler {
 	return &Compiler{}
+}
+
+func (compiler *Compiler) HandleEffect(effect, operation string, argCount int) error {
+	if effect == "" || operation == "" {
+		return fmt.Errorf("effect and operation are required")
+	}
+	if argCount < 0 {
+		return fmt.Errorf("arg count must be non-negative")
+	}
+
+	if compiler.hostEffects == nil {
+		compiler.hostEffects = map[string]hostEffectMeta{}
+	}
+
+	key := hostEffectKey(effect, operation)
+	if _, ok := compiler.hostEffects[key]; ok {
+		return fmt.Errorf("host effect %s.%s already registered", effect, operation)
+	}
+
+	compiler.hostEffects[key] = hostEffectMeta{
+		argCount: argCount,
+	}
+
+	return nil
 }
 
 func (compiler *Compiler) Compile(pkg *ast.Package) ([]bytecode.Command, error) {
@@ -409,6 +434,10 @@ func (compiler *Compiler) compileEffectCall(sexp *ast.SExp) bool {
 
 	info := compiler.lookupEffectOperation(head.Value, op.Value)
 	if info == nil {
+		hostMeta, ok := compiler.lookupHostEffect(head.Value, op.Value)
+		if ok {
+			return compiler.compileHostEffectCall(sexp, head.Value, op.Value, hostMeta.argCount)
+		}
 		return false
 	}
 
@@ -437,6 +466,26 @@ func (compiler *Compiler) compileEffectCall(sexp *ast.SExp) bool {
 		name:     info.name,
 		argCount: info.params,
 	})
+
+	return true
+}
+
+func (compiler *Compiler) compileHostEffectCall(sexp *ast.SExp, effect, op string, argCount int) bool {
+	args := sexp.Items[2:]
+	if len(args) != argCount {
+		compiler.err = fmt.Errorf("host effect %s.%s expects %d args, got %d", effect, op, argCount, len(args))
+		return true
+	}
+
+	for _, arg := range args {
+		compiler.compileNode(arg)
+		if compiler.err != nil {
+			return true
+		}
+	}
+
+	compiler.builder.append(bytecode.PushContinuation())
+	compiler.builder.append(bytecode.CallHost(effect, op, argCount))
 
 	return true
 }
@@ -685,6 +734,10 @@ type functionInfo struct {
 	name                 string
 }
 
+type hostEffectMeta struct {
+	argCount int
+}
+
 type pendingCall struct {
 	index    int
 	name     string
@@ -710,6 +763,19 @@ func (compiler *Compiler) lookupEffectOperation(effect, op string) *functionInfo
 	}
 
 	return nil
+}
+
+func (compiler *Compiler) lookupHostEffect(effect, op string) (hostEffectMeta, bool) {
+	if compiler.hostEffects == nil {
+		return hostEffectMeta{}, false
+	}
+
+	meta, ok := compiler.hostEffects[hostEffectKey(effect, op)]
+	return meta, ok
+}
+
+func hostEffectKey(effect, operation string) string {
+	return effect + ":" + operation
 }
 
 type Scope struct {

@@ -231,6 +231,111 @@ func TestCompileHandleInjectsContinuation(t *testing.T) {
 	require.Equal(t, "PushCont", commands[callIdx-1].Repr, "effect call should push continuation")
 }
 
+func TestCompileHostEffectCallEmitsCallHost(t *testing.T) {
+	comp := compiler.New()
+	require.NoError(t, comp.HandleEffect("io", "print", 1))
+
+	pkg := parsePackage(t, `(io print 1)`)
+	commands, err := comp.Compile(pkg)
+	require.NoError(t, err)
+
+	callIdx := -1
+	for i, cmd := range commands {
+		if strings.HasPrefix(cmd.Repr, "CallHost(") {
+			callIdx = i
+			break
+		}
+	}
+
+	require.NotEqual(t, -1, callIdx, "expected CallHost command")
+	require.Greater(t, callIdx, 0, "CallHost should have preceding command")
+	require.Equal(t, "PushCont", commands[callIdx-1].Repr, "effect call should push continuation")
+}
+
+func TestHostEffectHandlerInvoked(t *testing.T) {
+	comp := compiler.New()
+	require.NoError(t, comp.HandleEffect("io", "print", 1))
+
+	pkg := parsePackage(t, `(io print 42)`)
+	commands, err := comp.Compile(pkg)
+	require.NoError(t, err)
+
+	vm := bytecode.NewVM(commands)
+
+	var seenArgs []object.Object
+	require.NoError(t, vm.RegisterHostEffect("io", "print", func(ctx *bytecode.CallCtx, args []object.Object) {
+		seenArgs = append(seenArgs, args...)
+		ctx.Invoke(args...)
+	}))
+
+	vm.Run()
+	require.NoError(t, vm.Err)
+
+	require.Equal(t, int64(42), popInt(t, vm))
+
+	require.Len(t, seenArgs, 1)
+	prim, ok := seenArgs[0].(*object.Primitive[int64])
+	require.True(t, ok, "expected primitive int argument")
+	require.Equal(t, int64(42), prim.Value)
+}
+
+func TestHostDefinedTryCatchThrow(t *testing.T) {
+	comp := compiler.New()
+	require.NoError(t, comp.HandleEffect("exception", "try", 0))
+	require.NoError(t, comp.HandleEffect("exception", "throw", 1))
+	require.NoError(t, comp.HandleEffect("exception", "catch", 0))
+
+	src := `
+		(exception try)
+		(exception throw "boom")
+		(exception catch)
+	`
+
+	pkg := parsePackage(t, src)
+	commands, err := comp.Compile(pkg)
+	require.NoError(t, err)
+
+	vm := bytecode.NewVM(commands)
+
+	var (
+		trySeen   bool
+		throwSeen bool
+		catchSeen bool
+		thrownVal string
+	)
+
+	require.NoError(t, vm.RegisterHostEffect("exception", "try",
+		func(ctx *bytecode.CallCtx, args []object.Object) {
+			trySeen = true
+			ctx.Invoke()
+		}))
+	require.NoError(t, vm.RegisterHostEffect("exception", "throw",
+		func(ctx *bytecode.CallCtx, args []object.Object) {
+			throwSeen = true
+			if len(args) == 1 {
+				if val, ok := args[0].(*object.Primitive[string]); ok {
+					thrownVal = val.Value
+				} else {
+					thrownVal = args[0].Inspect()
+				}
+			}
+			ctx.Invoke()
+		}))
+	require.NoError(t, vm.RegisterHostEffect("exception", "catch",
+		func(ctx *bytecode.CallCtx, args []object.Object) {
+			catchSeen = true
+			ctx.Invoke()
+		}))
+
+	vm.Run()
+	require.NoError(t, vm.Err)
+
+	require.True(t, trySeen, "try handler should run")
+	require.True(t, throwSeen, "throw handler should run")
+	require.True(t, catchSeen, "catch handler should run")
+	require.Equal(t, `"boom"`, thrownVal)
+}
+
 func TestCompileErrorEffect(t *testing.T) {
 	src := `
 		(fn main ()
