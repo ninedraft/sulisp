@@ -12,7 +12,7 @@ var ErrBadStack = errors.New("bad values on stack, or stack is empty")
 
 func Const[E object.PrimitiveTypes](value E) Command {
 	return Command{
-		Repr: "Const",
+		Repr: fmt.Sprintf("Const(%v)", value),
 		Execute: func(vm *VM) {
 			vm.Stack.Push(object.PrimitiveOf(value))
 		},
