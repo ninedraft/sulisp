@@ -1,0 +1,8 @@
+(fn main () 
+    (assign x 0)
+    (io println x)
+    (while (< x 4) (sequence 
+        (assign x (+ x 1))
+        (io println "Hello there"))))
+
+(main)
