@@ -12,6 +12,7 @@ var isSpecial = map[string]bool{
 	".":      true,
 	"fn":     true,
 	"assign": true,
+	"handle": true,
 	"while":  true,
 	"begin":  true,
 	"let":    true,
@@ -61,6 +62,8 @@ func (parser *Parser) buildSpecial(sexp *ast.SExp) ast.Node {
 		return parser.buildFunction(sexp)
 	case "assign":
 		return parser.buildAssign(sexp)
+	case "handle":
+		return parser.buildHandle(sexp)
 	case "while":
 		return parser.buildWhile(sexp)
 	case "begin":
@@ -117,6 +120,59 @@ func (parser *Parser) buildFunction(sexp *ast.SExp) ast.Node {
 		PosRange:   parser.posRange(),
 		Identifier: name.Value,
 		Parameters: paramSymbols,
+		Body:       body,
+	}
+}
+
+func (parser *Parser) buildHandle(sexp *ast.SExp) ast.Node {
+	if len(sexp.Items) < 4 {
+		parser.errorf("handle requires effect name, operations and body")
+		return nil
+	}
+
+	effect, ok := sexp.Items[1].(*ast.Symbol)
+	if !ok {
+		parser.errorf("handle effect must be a symbol")
+		return nil
+	}
+
+	ops, ok := sexp.Items[2].(*ast.SExp)
+	if !ok {
+		parser.errorf("handle operations must be a list")
+		return nil
+	}
+
+	operations := make([]*ast.HandleOp, 0, len(ops.Items))
+	for _, item := range ops.Items {
+		op, ok := item.(*ast.SExp)
+		if !ok || len(op.Items) != 2 {
+			parser.errorf("each handle operation must be (name function)")
+			return nil
+		}
+
+		name, ok := op.Items[0].(*ast.Symbol)
+		if !ok {
+			parser.errorf("handle operation name must be symbol")
+			return nil
+		}
+
+		operations = append(operations, &ast.HandleOp{
+			PosRange: parser.posRange(),
+			OpName:   name.Value,
+			Body:     op.Items[1],
+		})
+	}
+
+	body := sexp.Items[3:]
+	if len(body) == 0 {
+		parser.errorf("handle body missing")
+		return nil
+	}
+
+	return &ast.Handle{
+		PosRange:   parser.posRange(),
+		Effect:     effect.Value,
+		Operations: operations,
 		Body:       body,
 	}
 }

@@ -339,6 +339,45 @@ func TestParseLet(t *testing.T) {
 	}, let.Body[1], "second body expression")
 }
 
+func TestParseHandle(t *testing.T) {
+	t.Parallel()
+
+	pkg := assertParse(t, `
+		(handle io
+			((print (fn print-handler (msg k) (builtin-print msg) (k null)))
+			 (read (fn read-handler (k) (k (builtin-read)))))
+			(io print "hello"))
+	`)
+
+	handle := requireItem[*ast.Handle](t, pkg.Nodes, 0, "parsed handle")
+	require.Equal(t, "io", handle.Effect, "effect name")
+	require.Len(t, handle.Operations, 2, "operation count")
+	assertEqual(t, &ast.HandleOp{
+		OpName: "print",
+		Body: &ast.Function{
+			Identifier: "print-handler",
+			Parameters: []*ast.Symbol{
+				{Value: "msg"},
+				{Value: "k"},
+			},
+			Body: &ast.SExp{
+				Items: []ast.Node{
+					&ast.Symbol{Value: "builtin-print"},
+					&ast.Symbol{Value: "msg"},
+				},
+			},
+		},
+	}, handle.Operations[0], "first operation")
+	require.Len(t, handle.Body, 1)
+	assertEqual(t, &ast.SExp{
+		Items: []ast.Node{
+			&ast.Symbol{Value: "io"},
+			&ast.Symbol{Value: "print"},
+			&ast.Literal[string]{Value: `"hello"`},
+		},
+	}, handle.Body[0], "body call")
+}
+
 func TestParseWhile(t *testing.T) {
 	t.Parallel()
 

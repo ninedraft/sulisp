@@ -14,6 +14,8 @@ type Compiler struct {
 	functionOrder []string
 	pendingCalls  []pendingCall
 	err           error
+	effectStack   []effectContext
+	currentFunc   *functionInfo
 }
 
 func New() *Compiler {
@@ -96,6 +98,8 @@ func (compiler *Compiler) compileNode(node ast.Node) {
 		compiler.compileWhile(n)
 	case *ast.Let:
 		compiler.compileLet(n)
+	case *ast.Handle:
+		compiler.compileHandle(n)
 	case *ast.SExp:
 		compiler.compileSexpCall(n)
 	case *ast.Match:
@@ -181,23 +185,97 @@ func (compiler *Compiler) compileLet(let *ast.Let) {
 	}
 }
 
+func (compiler *Compiler) compileHandle(handle *ast.Handle) {
+	if handle == nil {
+		return
+	}
+
+	operations := make(map[string]*functionInfo, len(handle.Operations))
+
+	for _, op := range handle.Operations {
+		fn, ok := op.Body.(*ast.Function)
+		if !ok {
+			compiler.err = fmt.Errorf("handle operation %s must be a function", op.OpName)
+			return
+		}
+
+		name := fmt.Sprintf("handle:%s:%s:%d", handle.Effect, op.OpName, len(compiler.functionOrder))
+		info := compiler.registerFunctionWithName(name, fn, true, handle.Effect, op.OpName)
+		if compiler.err != nil {
+			return
+		}
+
+		operations[op.OpName] = info
+	}
+
+	ctx := effectContext{
+		name:       handle.Effect,
+		operations: operations,
+	}
+
+	compiler.effectStack = append(compiler.effectStack, ctx)
+	defer func() {
+		compiler.effectStack = compiler.effectStack[:len(compiler.effectStack)-1]
+	}()
+
+	for i, item := range handle.Body {
+		compiler.compileNode(item)
+		if compiler.err != nil {
+			return
+		}
+
+		if i < len(handle.Body)-1 {
+			compiler.builder.append(bytecode.Pop())
+		}
+	}
+}
+
 func (compiler *Compiler) registerFunction(fn *ast.Function) {
 	if compiler.err != nil || fn == nil {
 		return
 	}
 
-	if fn.Identifier == "" {
+	compiler.registerFunctionWithName(fn.Identifier, fn, false, "", "")
+}
+
+func (compiler *Compiler) registerFunctionWithName(name string, fn *ast.Function, requiresContinuation bool, effectName, opName string) *functionInfo {
+	if compiler.err != nil || fn == nil {
+		return nil
+	}
+
+	if name == "" {
 		compiler.err = fmt.Errorf("function name required")
-		return
+		return nil
 	}
 
-	if _, ok := compiler.functions[fn.Identifier]; ok {
-		compiler.err = fmt.Errorf("function %q already defined", fn.Identifier)
-		return
+	if _, ok := compiler.functions[name]; ok {
+		compiler.err = fmt.Errorf("function %q already defined", name)
+		return nil
 	}
 
-	compiler.functions[fn.Identifier] = &functionInfo{node: fn}
-	compiler.functionOrder = append(compiler.functionOrder, fn.Identifier)
+	info := &functionInfo{
+		node:                 fn,
+		entry:                0,
+		params:               len(fn.Parameters),
+		effectName:           effectName,
+		operationName:        opName,
+		requiresContinuation: requiresContinuation,
+		name:                 name,
+	}
+
+	if requiresContinuation {
+		if info.params == 0 {
+			compiler.err = fmt.Errorf("effect %s.%s must have continuation parameter", effectName, opName)
+			return nil
+		}
+		info.continuationParam = fn.Parameters[info.params-1].Value
+		info.continuationSlot = info.params - 1
+	}
+
+	compiler.functions[name] = info
+	compiler.functionOrder = append(compiler.functionOrder, name)
+
+	return info
 }
 
 func (compiler *Compiler) compileSymbol(sym *ast.Symbol) {
@@ -249,6 +327,14 @@ func (compiler *Compiler) compileSexpCall(sexp *ast.SExp) {
 		return
 	}
 
+	if compiler.compileContinuationCall(sexp) {
+		return
+	}
+
+	if compiler.compileEffectCall(sexp) {
+		return
+	}
+
 	if len(sexp.Items) == 0 {
 		compiler.err = fmt.Errorf("empty s-expression cannot be called")
 		return
@@ -275,6 +361,84 @@ func (compiler *Compiler) compileSexpCall(sexp *ast.SExp) {
 		name:     callee.Value,
 		argCount: len(args),
 	})
+}
+
+func (compiler *Compiler) compileContinuationCall(sexp *ast.SExp) bool {
+	info := compiler.currentFunc
+	if info == nil || !info.requiresContinuation {
+		return false
+	}
+
+	head, ok := sexp.Items[0].(*ast.Symbol)
+	if !ok {
+		return false
+	}
+
+	if head.Value != info.continuationParam {
+		return false
+	}
+
+	args := sexp.Items[1:]
+	for _, arg := range args {
+		compiler.compileNode(arg)
+		if compiler.err != nil {
+			return true
+		}
+	}
+
+	compiler.builder.append(bytecode.LoadLocal(info.continuationSlot))
+	compiler.builder.append(bytecode.InvokeContinuation(len(args)))
+
+	return true
+}
+
+func (compiler *Compiler) compileEffectCall(sexp *ast.SExp) bool {
+	if len(sexp.Items) < 2 {
+		return false
+	}
+
+	head, ok := sexp.Items[0].(*ast.Symbol)
+	if !ok {
+		return false
+	}
+
+	op, ok := sexp.Items[1].(*ast.Symbol)
+	if !ok {
+		return false
+	}
+
+	info := compiler.lookupEffectOperation(head.Value, op.Value)
+	if info == nil {
+		return false
+	}
+
+	args := sexp.Items[2:]
+	expected := info.params - 1
+	if expected < 0 {
+		expected = 0
+	}
+	if len(args) != expected {
+		compiler.err = fmt.Errorf("effect %s.%s expects %d args, got %d", head.Value, op.Value, expected, len(args))
+		return true
+	}
+
+	for _, arg := range args {
+		compiler.compileNode(arg)
+		if compiler.err != nil {
+			return true
+		}
+	}
+
+	compiler.builder.append(bytecode.PushContinuation())
+	index := compiler.builder.append(bytecode.Call(0, info.params))
+
+	compiler.pendingCalls = append(compiler.pendingCalls, pendingCall{
+		index:    index,
+		name:     info.name,
+		argCount: info.params,
+	})
+
+	return true
 }
 
 func (compiler *Compiler) compileSpecialOp(op *ast.SpecialOp) {
@@ -466,7 +630,8 @@ func (compiler *Compiler) compileFunctions() {
 	prevScope := compiler.scope
 	defer func() { compiler.scope = prevScope }()
 
-	for _, name := range compiler.functionOrder {
+	for i := 0; i < len(compiler.functionOrder); i++ {
+		name := compiler.functionOrder[i]
 		if compiler.err != nil {
 			return
 		}
@@ -478,8 +643,12 @@ func (compiler *Compiler) compileFunctions() {
 		for _, param := range info.node.Parameters {
 			compiler.scope.declare(param.Value)
 		}
+		prevFunc := compiler.currentFunc
+		compiler.currentFunc = info
 
 		compiler.compileNode(info.node.Body)
+
+		compiler.currentFunc = prevFunc
 		if compiler.err != nil {
 			return
 		}
@@ -505,14 +674,42 @@ func (compiler *Compiler) patchPendingCalls() {
 }
 
 type functionInfo struct {
-	node  *ast.Function
-	entry bytecode.PC
+	node                 *ast.Function
+	entry                bytecode.PC
+	params               int
+	requiresContinuation bool
+	effectName           string
+	operationName        string
+	continuationParam    string
+	continuationSlot     int
+	name                 string
 }
 
 type pendingCall struct {
 	index    int
 	name     string
 	argCount int
+}
+
+type effectContext struct {
+	name       string
+	operations map[string]*functionInfo
+}
+
+func (compiler *Compiler) lookupEffectOperation(effect, op string) *functionInfo {
+	for i := len(compiler.effectStack) - 1; i >= 0; i-- {
+		ctx := compiler.effectStack[i]
+		if ctx.name != effect {
+			continue
+		}
+
+		info, ok := ctx.operations[op]
+		if ok {
+			return info
+		}
+	}
+
+	return nil
 }
 
 type Scope struct {

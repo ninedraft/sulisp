@@ -387,6 +387,96 @@ func (let *Let) Clone() Node {
 	return &clone
 }
 
+type Handle struct {
+	PosRange
+	Effect     string
+	Operations []*HandleOp
+	Body       []Node
+}
+
+func (handle *Handle) Name() string { return "handle" }
+
+func (handle *Handle) Equal(other Node) bool {
+	if handle == nil {
+		return other == nil
+	}
+	o, ok := other.(*Handle)
+	if !ok {
+		return false
+	}
+	return handle.Effect == o.Effect &&
+		equalSlices(handle.Operations, o.Operations) &&
+		equalSlices(handle.Body, o.Body)
+}
+
+func (handle *Handle) Clone() Node {
+	if handle == nil {
+		return nil
+	}
+	clone := *handle
+	clone.Operations = cloneSlice(handle.Operations)
+	clone.Body = cloneSlice(handle.Body)
+	return &clone
+}
+
+func (handle *Handle) String() string {
+	if handle == nil {
+		return "nil-handle"
+	}
+	str := &strings.Builder{}
+	str.WriteString("(handle ")
+	str.WriteString(handle.Effect)
+	str.WriteString(" (")
+	for i, op := range handle.Operations {
+		if i > 0 {
+			str.WriteRune(' ')
+		}
+		str.WriteString(op.String())
+	}
+	str.WriteString(")")
+	for _, item := range handle.Body {
+		str.WriteRune(' ')
+		str.WriteString(item.String())
+	}
+	str.WriteString(")")
+	return str.String()
+}
+
+type HandleOp struct {
+	PosRange
+	OpName string
+	Body   Node
+}
+
+func (op *HandleOp) Name() string { return "handle-op" }
+
+func (op *HandleOp) Equal(other Node) bool {
+	if op == nil {
+		return other == nil
+	}
+	o, ok := other.(*HandleOp)
+	if !ok {
+		return false
+	}
+	return op.OpName == o.OpName && equalNodes(op.Body, o.Body)
+}
+
+func (op *HandleOp) Clone() Node {
+	if op == nil {
+		return nil
+	}
+	clone := *op
+	clone.Body = Clone(op.Body)
+	return &clone
+}
+
+func (op *HandleOp) String() string {
+	if op == nil {
+		return "nil-handle-op"
+	}
+	return "(" + op.OpName + " " + op.Body.String() + ")"
+}
+
 type While struct {
 	PosRange
 	Cond Node

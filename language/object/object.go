@@ -30,6 +30,7 @@ const (
 	ObjArray     Kind = "array"
 	ObjAST       Kind = "ast"
 	ObjNamespace Kind = "namespace"
+	ObjContinuation Kind = "continuation"
 )
 
 var Kinds = []Kind{

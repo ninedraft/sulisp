@@ -205,6 +205,52 @@ func TestCompileLetRestoresOuterVariable(t *testing.T) {
 	require.Equal(t, int64(3), popInt(t, vm))
 }
 
+func TestCompileHandleInjectsContinuation(t *testing.T) {
+	src := `
+		(handle io
+			((print (fn print-handler (msg k) (k msg))))
+			(io print "hi"))
+	`
+
+	pkg := parsePackage(t, src)
+
+	comp := compiler.New()
+	commands, err := comp.Compile(pkg)
+	require.NoError(t, err)
+
+	callIdx := -1
+	for i, cmd := range commands {
+		if strings.HasPrefix(cmd.Repr, "Call(") {
+			callIdx = i
+			break
+		}
+	}
+
+	require.NotEqual(t, -1, callIdx, "expected a call command")
+	require.Greater(t, callIdx, 0, "call must have preceding command")
+	require.Equal(t, "PushCont", commands[callIdx-1].Repr, "effect call should push continuation")
+}
+
+func TestCompileErrorEffect(t *testing.T) {
+	src := `
+		(fn main ()
+			(handle error
+				((raise (fn raise-handler (msg k) (k msg))))
+				(let ((value (error raise "boom")))
+					value)))
+
+		(main)
+	`
+
+	vm := runSource(t, src)
+	result, ok := vm.Stack.Pop()
+	require.True(t, ok)
+
+	str, ok := result.(*object.Primitive[string])
+	require.True(t, ok)
+	require.Equal(t, `"boom"`, str.Value)
+}
+
 func runCompiled(t *testing.T, pkg *ast.Package) *bytecode.VM {
 	t.Helper()
 
