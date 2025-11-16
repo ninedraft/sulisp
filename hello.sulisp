@@ -1,8 +1,15 @@
 (fn main () 
-    (assign x 0)
-    (io println x)
-    (while (< x 4) (sequence 
-        (assign x (+ x 1))
-        (io println "Hello there"))))
+    (begin 
+        (assign x 0)
+        (handle error 
+            (
+                (throw (fn handle (err k) (io println err)))
+            )
+            (io println x)
+            (while (< x 4) 
+                (begin 
+                    (assign x (+ x 1))
+                    (io println "Hello there")
+                    (error throw :error))))))
 
 (main)

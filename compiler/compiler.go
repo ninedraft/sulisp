@@ -500,29 +500,35 @@ func (compiler *Compiler) compileSpecialOp(op *ast.SpecialOp) {
 		compiler.compileBinary(op.Items, bytecode.Sub)
 	case "/":
 		compiler.compileBinary(op.Items, bytecode.Div)
+	case "<":
+		compiler.compileLeftAssociative(op.Items, 2, bytecode.Less())
+	case "<=":
+		compiler.compileLeftAssociative(op.Items, 2, bytecode.LessEqual())
+	case ">":
+		compiler.compileLeftAssociative(op.Items, 2, bytecode.Greater())
+	case ">=":
+		compiler.compileLeftAssociative(op.Items, 2, bytecode.GreaterEqual())
+	case "not":
+		if len(op.Items) != 1 {
+			compiler.err = fmt.Errorf("operator not requires one operand, got %d", len(op.Items))
+			return
+		}
+		compiler.compileNode(op.Items[0])
+		if compiler.err != nil {
+			return
+		}
+		compiler.builder.append(bytecode.Not())
+	case "and":
+		compiler.compileLeftAssociative(op.Items, 2, bytecode.And())
+	case "or":
+		compiler.compileLeftAssociative(op.Items, 2, bytecode.Or())
 	default:
 		compiler.err = fmt.Errorf("unsupported operator %s", op.Op)
 	}
 }
 
 func (compiler *Compiler) compileVariadic(items []ast.Node, cmd bytecode.Command) {
-	if len(items) == 0 {
-		compiler.err = fmt.Errorf("operator %s requires at least one operand", cmd.Repr)
-		return
-	}
-
-	compiler.compileNode(items[0])
-	if compiler.err != nil {
-		return
-	}
-
-	for _, operand := range items[1:] {
-		compiler.compileNode(operand)
-		if compiler.err != nil {
-			return
-		}
-		compiler.builder.append(cmd)
-	}
+	compiler.compileLeftAssociative(items, 1, cmd)
 }
 
 func (compiler *Compiler) compileBinary(items []ast.Node, cmd bytecode.Command) {
@@ -539,6 +545,26 @@ func (compiler *Compiler) compileBinary(items []ast.Node, cmd bytecode.Command) 
 	}
 
 	compiler.builder.append(cmd)
+}
+
+func (compiler *Compiler) compileLeftAssociative(items []ast.Node, min int, cmd bytecode.Command) {
+	if len(items) < min {
+		compiler.err = fmt.Errorf("operator %s requires at least %d operands, got %d", cmd.Repr, min, len(items))
+		return
+	}
+
+	compiler.compileNode(items[0])
+	if compiler.err != nil {
+		return
+	}
+
+	for _, operand := range items[1:] {
+		compiler.compileNode(operand)
+		if compiler.err != nil {
+			return
+		}
+		compiler.builder.append(cmd)
+	}
 }
 
 func (compiler *Compiler) compileIf(if_ *ast.If) {
