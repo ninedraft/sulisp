@@ -2,24 +2,41 @@ package parser
 
 import (
 	"github.com/ninedraft/sulisp/language/ast"
-	"golang.org/x/exp/maps"
 )
 
 var isSpecial = map[string]bool{
 	"import-go": true,
 	"if":        true, "cond": true,
-	"+": true, "-": true, "*": true, "/": true,
 	".":      true,
 	"fn":     true,
 	"assign": true,
+	"while":  true,
+	"begin":  true,
 }
 
-var specialOperators = map[string]bool{
-	"+": true, "-": true, "*": true, "/": true,
+type operatorDef struct {
+	minArgs int
+	maxArgs int
+}
+
+var specialOperatorDefs = map[string]operatorDef{
+	"+":   {minArgs: 1, maxArgs: -1},
+	"*":   {minArgs: 1, maxArgs: -1},
+	"-":   {minArgs: 2, maxArgs: 2},
+	"/":   {minArgs: 2, maxArgs: 2},
+	"<":   {minArgs: 2, maxArgs: 2},
+	"<=":  {minArgs: 2, maxArgs: 2},
+	">":   {minArgs: 2, maxArgs: 2},
+	">=":  {minArgs: 2, maxArgs: 2},
+	"not": {minArgs: 1, maxArgs: 1},
+	"and": {minArgs: 2, maxArgs: -1},
+	"or":  {minArgs: 2, maxArgs: -1},
 }
 
 func init() {
-	maps.Copy(isSpecial, specialOperators)
+	for name := range specialOperatorDefs {
+		isSpecial[name] = true
+	}
 }
 
 func (parser *Parser) buildSpecial(sexp *ast.SExp) ast.Node {
@@ -40,10 +57,14 @@ func (parser *Parser) buildSpecial(sexp *ast.SExp) ast.Node {
 		return parser.buildFunction(sexp)
 	case "assign":
 		return parser.buildAssign(sexp)
+	case "while":
+		return parser.buildWhile(sexp)
+	case "begin":
+		return parser.buildSequence(sexp)
 	}
 
-	if specialOperators[head.Value] {
-		return parser.buildSpecialOperator(sexp)
+	if sys, ok := specialOperatorDefs[head.Value]; ok {
+		return parser.buildSpecialOperator(sexp, sys)
 	}
 
 	parser.errorf("unknown special form %s", head.Value)
@@ -182,21 +203,68 @@ func (parser *Parser) buildImportGo(sexp *ast.SExp) *ast.ImportGo {
 	return importgo
 }
 
-func (parser *Parser) buildSpecialOperator(sexp *ast.SExp) *ast.SpecialOp {
+func (parser *Parser) buildSequence(sexp *ast.SExp) ast.Node {
+	if len(sexp.Items) < 2 {
+		parser.errorf("begin requires at least one expression")
+		return nil
+	}
+
+	items := make([]ast.Node, 0, len(sexp.Items)-1)
+	for _, item := range sexp.Items[1:] {
+		if item == nil {
+			parser.errorf("begin cannot contain nil expression")
+			return nil
+		}
+		items = append(items, item)
+	}
+
+	return &ast.Sequence{
+		PosRange: parser.posRange(),
+		Items:    items,
+	}
+}
+
+func (parser *Parser) buildWhile(sexp *ast.SExp) ast.Node {
+	if len(sexp.Items) != 3 {
+		parser.errorf("while requires condition and body")
+		return nil
+	}
+
+	cond := sexp.Items[1]
+	body := sexp.Items[2]
+
+	if cond == nil {
+		parser.errorf("while condition missing")
+		return nil
+	}
+	if body == nil {
+		parser.errorf("while body missing")
+		return nil
+	}
+
+	return &ast.While{
+		PosRange: parser.posRange(),
+		Cond:     cond,
+		Body:     body,
+	}
+}
+
+func (parser *Parser) buildSpecialOperator(sexp *ast.SExp, def operatorDef) *ast.SpecialOp {
 	if len(sexp.Items) < 2 {
 		parser.errorf("operator must have at least 1 operand")
 		return nil
 	}
 
 	head := sexp.Items[0].(*ast.Symbol)
-	if !specialOperators[head.Value] {
-		parser.errorf("expected an operator, got %s", head.Value)
+
+	count := len(sexp.Items) - 1
+	if count < def.minArgs {
+		parser.errorf("operator %s requires at least %d operands, got %d", head.Value, def.minArgs, count)
 		return nil
 	}
 
-	// only commutative operators can have more than 2 operands
-	if (head.Value != "+" && head.Value != "*") && len(sexp.Items) != 3 {
-		parser.errorf("operator %s must have 2 operands, got %d", head.Value, len(sexp.Items)-1)
+	if def.maxArgs >= 0 && count > def.maxArgs {
+		parser.errorf("operator %s requires at most %d operands, got %d", head.Value, def.maxArgs, count)
 		return nil
 	}
 

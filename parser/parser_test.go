@@ -211,6 +211,59 @@ func TestParseSpecialOperator(t *testing.T) {
 	assertEqual(t, want, pkg, "parsed special operators")
 }
 
+func TestParseBegin(t *testing.T) {
+	t.Parallel()
+
+	pkg := assertParse(t, `
+		(begin
+			(+ 1 2)
+			(* 3 4))
+	`)
+
+	seq := requireItem[*ast.Sequence](t, pkg.Nodes, 0, "parsed sequence")
+	require.Len(t, seq.Items, 2, "sequence item count")
+	assertEqual(t, &ast.SpecialOp{
+		Op: "+",
+		Items: []ast.Node{
+			&ast.Literal[int64]{Value: 1},
+			&ast.Literal[int64]{Value: 2},
+		},
+	}, seq.Items[0], "sequence first item")
+	assertEqual(t, &ast.SpecialOp{
+		Op: "*",
+		Items: []ast.Node{
+			&ast.Literal[int64]{Value: 3},
+			&ast.Literal[int64]{Value: 4},
+		},
+	}, seq.Items[1], "sequence second item")
+}
+
+func TestParseWhile(t *testing.T) {
+	t.Parallel()
+
+	pkg := assertParse(t, `
+		(while (< counter 10)
+			(assign counter (+ counter 1)))
+	`)
+
+	loop := requireItem[*ast.While](t, pkg.Nodes, 0, "parsed while")
+	assertEqual(t, &ast.SpecialOp{
+		Op: "<",
+		Items: []ast.Node{
+			&ast.Symbol{Value: "counter"},
+			&ast.Literal[int64]{Value: 10},
+		},
+	}, loop.Cond, "while condition")
+	assign := requireItem[*ast.Assign](t, []ast.Node{loop.Body}, 0, "while body assign")
+	assertEqual(t, &ast.SpecialOp{
+		Op: "+",
+		Items: []ast.Node{
+			&ast.Symbol{Value: "counter"},
+			&ast.Literal[int64]{Value: 1},
+		},
+	}, assign.Value, "assign increment")
+}
+
 func TestParseFunction(t *testing.T) {
 	t.Parallel()
 

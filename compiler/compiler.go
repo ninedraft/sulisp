@@ -88,11 +88,55 @@ func (compiler *Compiler) compileNode(node ast.Node) {
 		compiler.compileSymbol(n)
 	case *ast.Assign:
 		compiler.compileAssign(n)
+	case *ast.Sequence:
+		compiler.compileSequence(n)
+	case *ast.While:
+		compiler.compileWhile(n)
 	case *ast.SExp:
 		compiler.compileSexpCall(n)
 	default:
 		compiler.err = fmt.Errorf("unsupported node %T", node)
 	}
+}
+
+func (compiler *Compiler) compileSequence(seq *ast.Sequence) {
+	for i, item := range seq.Items {
+		compiler.compileNode(item)
+		if compiler.err != nil {
+			return
+		}
+
+		if i < len(seq.Items)-1 {
+			compiler.builder.append(bytecode.Pop())
+		}
+	}
+}
+
+func (compiler *Compiler) compileWhile(loop *ast.While) {
+	if loop == nil {
+		return
+	}
+
+	start := compiler.builder.len()
+
+	compiler.compileNode(loop.Cond)
+	if compiler.err != nil {
+		return
+	}
+
+	exitJump := compiler.builder.append(bytecode.JumpIfFalse(0))
+
+	compiler.compileNode(loop.Body)
+	if compiler.err != nil {
+		return
+	}
+
+	compiler.builder.append(bytecode.Pop())
+	compiler.builder.append(bytecode.Jump(bytecode.PC(start)))
+
+	end := compiler.builder.len()
+	compiler.builder.patch(exitJump, bytecode.JumpIfFalse(bytecode.PC(end)))
+	compiler.builder.append(bytecode.Null)
 }
 
 func (compiler *Compiler) registerFunction(fn *ast.Function) {

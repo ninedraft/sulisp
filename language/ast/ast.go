@@ -244,6 +244,105 @@ func (dot *DotSelector) Clone() Node {
 	return clone
 }
 
+type Sequence struct {
+	PosRange
+	Items []Node
+}
+
+func (seq *Sequence) Name() string {
+	return "sequence"
+}
+
+func (seq *Sequence) String() string {
+	if seq == nil {
+		return "nil-sequence"
+	}
+
+	str := &strings.Builder{}
+	str.WriteString("(begin")
+	for _, item := range seq.Items {
+		str.WriteRune(' ')
+		str.WriteString(item.String())
+	}
+	str.WriteString(")")
+	return str.String()
+}
+
+func (seq *Sequence) Equal(other Node) bool {
+	if seq == nil {
+		return other == nil
+	}
+
+	o, ok := other.(*Sequence)
+	if !ok {
+		return false
+	}
+
+	return equalSlices(seq.Items, o.Items)
+}
+
+func (seq *Sequence) Clone() Node {
+	if seq == nil {
+		return nil
+	}
+
+	clone := *seq
+	clone.Items = cloneSlice(seq.Items)
+	return &clone
+}
+
+type While struct {
+	PosRange
+	Cond Node
+	Body Node
+}
+
+func (while *While) Name() string {
+	return "while"
+}
+
+func (while *While) String() string {
+	if while == nil {
+		return "nil-while"
+	}
+
+	str := &strings.Builder{}
+	str.WriteString("(while ")
+	if while.Cond != nil {
+		str.WriteString(while.Cond.String())
+	}
+	str.WriteString(" ")
+	if while.Body != nil {
+		str.WriteString(while.Body.String())
+	}
+	str.WriteString(")")
+	return str.String()
+}
+
+func (while *While) Equal(other Node) bool {
+	if while == nil {
+		return other == nil
+	}
+
+	o, ok := other.(*While)
+	if !ok {
+		return false
+	}
+
+	return equalNodes(while.Cond, o.Cond) && equalNodes(while.Body, o.Body)
+}
+
+func (while *While) Clone() Node {
+	if while == nil {
+		return nil
+	}
+
+	clone := *while
+	clone.Cond = Clone(while.Cond)
+	clone.Body = Clone(while.Body)
+	return &clone
+}
+
 type Function struct {
 	PosRange
 	Identifier string
