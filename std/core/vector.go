@@ -60,7 +60,22 @@ func (vector *Vector[E]) Get(index int) (E, bool) {
 }
 
 func (vector *Vector[E]) Assoc(index int, value E) *Vector[E] {
-	if index < 0 || index >= vector.size {
+	if index < 0 {
+		return vector
+	}
+
+	if vector == nil {
+		if index == 0 {
+			return vector.Append(value)
+		}
+		return vector
+	}
+
+	if index == vector.size {
+		return vector.Append(value)
+	}
+
+	if index > vector.size {
 		return vector
 	}
 

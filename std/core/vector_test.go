@@ -50,6 +50,17 @@ func TestVectorAssoc(t *testing.T) {
 		assert.True(t, ok)
 		assert.Equal(t, 10, origVal)
 	})
+
+	t.Run("acts as append when index equals size", func(t *testing.T) {
+		appended := base.Assoc(base.Size(), 888)
+		assert.Equal(t, base.Size()+1, appended.Size())
+		val, ok := appended.Get(base.Size())
+		assert.True(t, ok)
+		assert.Equal(t, 888, val)
+
+		_, ok = base.Get(base.Size())
+		assert.False(t, ok, "original vector should not expose the new value")
+	})
 }
 
 func TestVectorPop(t *testing.T) {
