@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strings"
 )
 
 const (
@@ -229,12 +230,16 @@ func (vector *Vector[E]) hasOnlyOneChild(node *vectorNode[E], idx int) bool {
 		return false
 	}
 
-	for k := range vectorB - 1 {
-		if k == idx {
+	if idx < 0 || idx >= len(node.children) {
+		return false
+	}
+
+	for childIndex, child := range node.children {
+		if childIndex == idx {
 			continue
 		}
 
-		if node.children[k] != nil {
+		if child != nil {
 			return false
 		}
 	}
@@ -285,4 +290,17 @@ func (vector *Vector[E]) Size() int {
 		return 0
 	}
 	return vector.size
+}
+
+func (vector *Vector[E]) String() string {
+	str := &strings.Builder{}
+	str.WriteString("(vector")
+
+	for _, value := range vector.All {
+		str.WriteByte(' ')
+		fmt.Fprint(str, value)
+	}
+
+	str.WriteByte(')')
+	return str.String()
 }
