@@ -228,7 +228,7 @@ func (vector *Vector[E]) hasOnlyOneChild(node *vectorNode[E], idx int) bool {
 }
 
 func (vector *Vector[E]) All(yield func(int, E) bool) {
-	if vector == nil {
+	if vector == nil || vector.root == nil {
 		return
 	}
 
