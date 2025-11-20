@@ -20,7 +20,7 @@ const (
 func TestVectorAppendAndGet(t *testing.T) {
 	t.Run("grows beyond root and keeps inserted elements", func(t *testing.T) {
 		var vector *Vector[int]
-		for i := 0; i < 70; i++ {
+		for i := range 70 {
 			vector = vector.Append(i)
 			assert.Equal(t, i+1, vector.Size())
 			val, ok := vector.Get(i)
@@ -42,7 +42,7 @@ func TestVectorAppendAndGet(t *testing.T) {
 
 func TestVectorAssoc(t *testing.T) {
 	var base *Vector[int]
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		base = base.Append(i * 10)
 	}
 
@@ -115,7 +115,7 @@ func TestVectorAssocDeep(t *testing.T) {
 
 func TestVectorPop(t *testing.T) {
 	var vector *Vector[int]
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		vector = vector.Append(i)
 	}
 
@@ -167,33 +167,28 @@ func TestVectorAll(t *testing.T) {
 	t.Run("iterates in order and exposes indexes", func(t *testing.T) {
 		var vector *Vector[int]
 		const total = 12
-		for i := 0; i < total; i++ {
+		for i := range total {
 			vector = vector.Append(i * 2)
 		}
 
 		var seen []int
-		vector.All(func(idx int, value int) bool {
+		for idx, value := range vector.All {
 			seen = append(seen, value)
 			assert.Equal(t, len(seen)-1, idx)
-			return true
-		})
+		}
 
 		assert.Equal(t, total, len(seen))
-		for i := 0; i < total; i++ {
+		for i := range total {
 			assert.Equal(t, i*2, seen[i])
 		}
 	})
 
 	t.Run("does nothing when vector is nil", func(t *testing.T) {
 		var vector *Vector[int]
-		called := false
 
-		vector.All(func(int, int) bool {
-			called = true
-			return true
-		})
-
-		assert.False(t, called)
+		for range vector.All {
+			t.Fatal("should not iterate an uninitialized vector")
+		}
 	})
 
 	t.Run("pop on nil returns nil", func(t *testing.T) {
@@ -209,13 +204,12 @@ func TestVectorAll(t *testing.T) {
 	t.Run("iterates nested nodes when depth exceeds one level", func(t *testing.T) {
 		vector := buildVectorWithSize(t, nestedVectorDepth)
 
-		var seen []int
-		vector.All(func(int, int) bool {
-			seen = append(seen, 0)
-			return true
-		})
+		count := 0
+		for range vector.All {
+			count++
+		}
 
-		assert.Equal(t, vector.Size(), len(seen))
+		assert.Equal(t, vector.Size(), count)
 	})
 
 }
@@ -284,7 +278,7 @@ func TestVectorString(t *testing.T) {
 func buildVectorWithSize(t *testing.T, size int) *Vector[int] {
 	t.Helper()
 	var vector *Vector[int]
-	for i := 0; i < size; i++ {
+	for i := range size {
 		vector = vector.Append(i)
 	}
 
