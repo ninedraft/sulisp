@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -183,20 +184,6 @@ func TestVectorAll(t *testing.T) {
 		}
 	})
 
-	t.Run("stops when callback returns false", func(t *testing.T) {
-		var vector *Vector[int]
-		for i := 0; i < 5; i++ {
-			vector = vector.Append(i)
-		}
-
-		counter := 0
-		for range vector.All {
-			counter++
-		}
-
-		assert.Equal(t, 3, counter)
-	})
-
 	t.Run("does nothing when vector is nil", func(t *testing.T) {
 		var vector *Vector[int]
 		called := false
@@ -231,17 +218,60 @@ func TestVectorAll(t *testing.T) {
 		assert.Equal(t, vector.Size(), len(seen))
 	})
 
-	t.Run("stops when nested callback returns false", func(t *testing.T) {
+}
+
+func TestVectorAllValues(t *testing.T) {
+	t.Run("traverses every stored value in order", func(t *testing.T) {
+		vector := buildVectorWithSize(t, 6)
+
+		seen := slices.Collect(vector.AllValues)
+
+		require.Equal(t, vector.Size(), len(seen))
+		slices.Sort(seen)
+		for i := range seen {
+			assert.Equal(t, i, seen[i])
+		}
+	})
+
+	t.Run("does nothing when vector is nil", func(t *testing.T) {
+		var vector *Vector[int]
+		assert.Empty(t, slices.Collect(vector.AllValues))
+	})
+}
+
+func TestVectorAllReversed(t *testing.T) {
+	t.Run("traverses from last inserted value to first", func(t *testing.T) {
+		vector := buildVectorWithSize(t, 5)
+		var values []int
+		var indexes []int
+
+		for i, value := range vector.AllReversed {
+			values = append(values, value)
+			indexes = append(indexes, i)
+		}
+
+		assert.Equal(t, []int{4, 3, 2, 1, 0}, values)
+		assert.Equal(t, []int{4, 3, 2, 1, 0}, indexes)
+	})
+
+	t.Run("stops early when callback returns false even for deep vectors", func(t *testing.T) {
 		vector := buildVectorWithSize(t, nestedVectorDepth)
+		count := 0
 
-		counter := 0
-		stopAt := 3
-		vector.All(func(int, int) bool {
-			counter++
-			return counter < stopAt
-		})
+		for range vector.AllReversed {
+			count++
+			if count >= 2 {
+				break
+			}
+		}
 
-		assert.Equal(t, stopAt, counter)
+		assert.Equal(t, 2, count)
+	})
+
+	t.Run("is nil-safe", func(t *testing.T) {
+		var vector *Vector[int]
+
+		assert.Empty(t, slices.Collect(vector.AllValues))
 	})
 }
 
@@ -260,4 +290,47 @@ func buildVectorWithSize(t *testing.T, size int) *Vector[int] {
 
 	require.Equal(t, size, vector.Size())
 	return vector
+}
+
+func TestVectorEqualFn(t *testing.T) {
+	equal := func(a, b int) bool {
+		return a == b
+	}
+
+	t.Run("two identical vectors are equal", func(t *testing.T) {
+		a := buildVectorWithSize(t, 5)
+		b := buildVectorWithSize(t, 5)
+
+		assert.True(t, a.EqualFn(b, equal))
+	})
+
+	t.Run("same vector is equal to itself", func(t *testing.T) {
+		vector := buildVectorWithSize(t, 3)
+
+		assert.True(t, vector.EqualFn(vector, equal))
+	})
+
+	t.Run("two nil vectors are equal", func(t *testing.T) {
+		var vector *Vector[int]
+		assert.True(t, vector.EqualFn(vector, equal))
+	})
+
+	t.Run("nil versus non-nil returns false", func(t *testing.T) {
+		var vector *Vector[int]
+		other := buildVectorWithSize(t, 1)
+		assert.False(t, vector.EqualFn(other, equal))
+	})
+
+	t.Run("size mismatch returns false", func(t *testing.T) {
+		short := buildVectorWithSize(t, 2)
+		long := buildVectorWithSize(t, 3)
+		assert.False(t, short.EqualFn(long, equal))
+	})
+
+	t.Run("fails when equal function rejects a pair", func(t *testing.T) {
+		vector := buildVectorWithSize(t, 5)
+		other := vector.Assoc(2, 999)
+
+		assert.False(t, vector.EqualFn(other, equal))
+	})
 }

@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"iter"
 	"math"
 	"slices"
 	"strings"
@@ -285,6 +286,83 @@ func (vector *Vector[E]) All(yield func(int, E) bool) {
 	visitNode(vector.root, vector.depth, 0)
 }
 
+func (vector *Vector[E]) AllReversed(yield func(int, E) bool) {
+	if vector == nil || vector.root == nil {
+		return
+	}
+
+	var visitNode func(node *vectorNode[E], level int, indexBase int) bool
+
+	visitNode = func(node *vectorNode[E], level int, indexBase int) bool {
+		if level == 0 {
+			for i := len(node.children) - 1; i >= 0; i-- {
+				child := node.children[i]
+				if child == nil {
+					continue
+				}
+
+				if !yield(indexBase+i, child.(E)) {
+					return false
+				}
+			}
+
+			return true
+		}
+
+		for i, child := range slices.Backward(node.children) {
+			if child == nil {
+				continue
+			}
+
+			if !visitNode(child.(*vectorNode[E]), level-1, indexBase+i*vectorB) {
+				return false
+			}
+		}
+
+		return true
+	}
+
+	visitNode(vector.root, vector.depth, 0)
+}
+
+func (vector *Vector[E]) AllValues(yield func(E) bool) {
+	if vector == nil || vector.root == nil {
+		return
+	}
+
+	var visitNode func(node *vectorNode[E], level int, indexBase int) bool
+
+	visitNode = func(node *vectorNode[E], level int, indexBase int) bool {
+		if level == 0 {
+			for _, child := range node.children {
+				if child == nil {
+					continue
+				}
+
+				if !yield(child.(E)) {
+					return false
+				}
+			}
+
+			return true
+		}
+
+		for i, child := range node.children {
+			if child == nil {
+				continue
+			}
+
+			if !visitNode(child.(*vectorNode[E]), level-1, indexBase+i*vectorB) {
+				return false
+			}
+		}
+
+		return true
+	}
+
+	visitNode(vector.root, vector.depth, 0)
+}
+
 func (vector *Vector[E]) Size() int {
 	if vector == nil {
 		return 0
@@ -303,4 +381,34 @@ func (vector *Vector[E]) String() string {
 
 	str.WriteByte(')')
 	return str.String()
+}
+
+func (vector *Vector[E]) EqualFn(other *Vector[E], equal func(a, b E) bool) bool {
+	if vector == other {
+		return true
+	}
+
+	if vector == nil || other == nil {
+		return false
+	}
+
+	if vector.Size() != other.Size() {
+		return false
+	}
+
+	next, stop := iter.Pull2(vector.All)
+	defer stop()
+
+	for _, otherValue := range other.All {
+		_, value, ok := next()
+		if !ok {
+			return false
+		}
+
+		if !equal(value, otherValue) {
+			return false
+		}
+	}
+
+	return true
 }
