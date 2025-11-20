@@ -190,10 +190,9 @@ func TestVectorAll(t *testing.T) {
 		}
 
 		counter := 0
-		vector.All(func(int, int) bool {
+		for range vector.All {
 			counter++
-			return counter < 3
-		})
+		}
 
 		assert.Equal(t, 3, counter)
 	})
@@ -244,6 +243,12 @@ func TestVectorAll(t *testing.T) {
 
 		assert.Equal(t, stopAt, counter)
 	})
+}
+
+func TestVectorString(t *testing.T) {
+	got := buildVectorWithSize(t, 4).String()
+
+	assert.Equal(t, "(vector 0 1 2 3)", got, "vector.String()")
 }
 
 func buildVectorWithSize(t *testing.T, size int) *Vector[int] {
