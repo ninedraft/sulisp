@@ -267,12 +267,25 @@ func TestVectorAllReversed(t *testing.T) {
 
 		assert.Empty(t, slices.Collect(vector.AllValues))
 	})
+
+	t.Run("is nil-safe when iterating with the callback", func(t *testing.T) {
+		var vector *Vector[int]
+		for range vector.AllReversed {
+			t.Fatal("callback should never execute for a nil vector")
+		}
+	})
 }
 
 func TestVectorString(t *testing.T) {
 	got := buildVectorWithSize(t, 4).String()
 
 	assert.Equal(t, "(vector 0 1 2 3)", got, "vector.String()")
+}
+
+func TestVectorStringNil(t *testing.T) {
+	var vector *Vector[int]
+
+	assert.Equal(t, "(vector)", vector.String(), "nil vector should render without elements")
 }
 
 func buildVectorWithSize(t *testing.T, size int) *Vector[int] {
@@ -327,4 +340,17 @@ func TestVectorEqualFn(t *testing.T) {
 
 		assert.False(t, vector.EqualFn(other, equal))
 	})
+}
+
+func TestVectorEqualFnOtherNilDoesNotCallEqual(t *testing.T) {
+	vector := buildVectorWithSize(t, 3)
+	called := false
+
+	equal := func(a, b int) bool {
+		called = true
+		return true
+	}
+
+	assert.False(t, vector.EqualFn(nil, equal))
+	assert.False(t, called, "equal function should not be invoked when the other vector is nil")
 }
