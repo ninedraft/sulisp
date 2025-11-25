@@ -2,6 +2,7 @@ package bytecode
 
 import (
 	"fmt"
+	"hash/maphash"
 
 	"github.com/ninedraft/sulisp/language/object"
 )
@@ -16,10 +17,28 @@ func (cont *Continuation) Inspect() string {
 	return fmt.Sprintf("<continuation resume=%d>", cont.ResumePC)
 }
 
+func (cont *Continuation) Hash(h *maphash.Hash) {
+	maphash.WriteComparable(h, cont.Kind())
+	maphash.WriteComparable(h, cont)
+}
+
+func (cont *Continuation) Compare(other object.Object) (int, bool) {
+	o, ok := other.(*Continuation)
+	if !ok {
+		return 0, false
+	}
+
+	if cont.ResumePC == o.ResumePC {
+		return 0, true
+	}
+
+	return 0, false
+}
+
 func PushContinuation() Command {
 	return Command{
 		Repr: "PushCont",
-	Execute: func(vm *VM) {
+		Execute: func(vm *VM) {
 			cont := &Continuation{
 				ResumePC: vm.PC + 2,
 			}

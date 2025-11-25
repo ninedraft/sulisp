@@ -3,11 +3,13 @@ package object
 type Env struct {
 	parent *Env
 	values map[string]Object
+	id     uint64
 }
 
 func NewEnv() *Env {
 	return &Env{
 		values: map[string]Object{},
+		id:     makeObjectID(),
 	}
 }
 
@@ -23,6 +25,7 @@ func (env *Env) Child() *Env {
 	return &Env{
 		parent: env,
 		values: map[string]Object{},
+		id:     makeObjectID(),
 	}
 }
 
