@@ -34,6 +34,7 @@ const (
 	ObjAST          Kind = "ast"
 	ObjNamespace    Kind = "namespace"
 	ObjContinuation Kind = "continuation"
+	ObjMap          Kind = "map"
 )
 
 var Kinds = []Kind{
