@@ -25,6 +25,44 @@ func (pos PosRange) Pos() PosRange {
 	return pos
 }
 
+type Atom[E LiteralValue] struct {
+	PosRange
+	Kind  tokens.TokenKind
+	Value E
+}
+
+func (*Atom[E]) IsAtom() struct{} {
+	return struct{}{}
+}
+
+func (atom *Atom[E]) Equal(other Node) bool {
+	if atom == nil {
+		return other == nil
+	}
+
+	o, ok := other.(*Atom[E])
+	if !ok {
+		return false
+	}
+
+	return atom.Kind == o.Kind && atom.Value == o.Value
+}
+
+func (atom *Atom[E]) Name() string {
+	return atom.Kind.String()
+}
+
+func (atom *Atom[E]) String() string {
+	if atom == nil {
+		return "<nil>"
+	}
+	return fmt.Sprint(atom.Value)
+}
+
+func (atom *Atom[E]) Clone() Node {
+	return shallow(atom)
+}
+
 type LiteralValue interface {
 	string | int64 | float64 | bool
 }
