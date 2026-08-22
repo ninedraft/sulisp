@@ -33,7 +33,7 @@ func EvalWithInference(node ast.Node, env *object.Env) object.Object {
 	return Eval(node, env)
 }
 
-func Infer(sexp *ast.SExp, env *object.Env, eval object.Eval) object.Object {
+func Infer(sexp *ast.List, env *object.Env, eval object.Eval) object.Object {
 	if len(sexp.Items) == 0 {
 		return fmtError(sexp.Pos(), "need at least on expression to infer types, got none")
 	}
@@ -119,7 +119,7 @@ func (ti *TypeInferencer) Infer(node ast.Node) (*object.Type, error) {
 		}
 
 		return thenType, nil
-	case *ast.SExp:
+	case *ast.List:
 		return ti.inferSExp(n)
 	case *ast.SpecialOp:
 		return ti.inferSpecialOp(n)
@@ -128,7 +128,7 @@ func (ti *TypeInferencer) Infer(node ast.Node) (*object.Type, error) {
 	return nil, fmt.Errorf("%w: unexpected node %s %q", errType, node.Name(), node.String())
 }
 
-func (ti *TypeInferencer) inferSExp(sexp *ast.SExp) (*object.Type, error) {
+func (ti *TypeInferencer) inferSExp(sexp *ast.List) (*object.Type, error) {
 	if len(sexp.Items) == 0 {
 		return &object.Type{
 			ObjKind: TypeAny,

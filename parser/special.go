@@ -20,7 +20,7 @@ func init() {
 	maps.Copy(isSpecial, specialOperators)
 }
 
-func (parser *Parser) buildSpecial(sexp *ast.SExp) ast.Node {
+func (parser *Parser) buildSpecial(sexp *ast.List) ast.Node {
 	head, ok := sexp.Items[0].(*ast.Symbol)
 	if !ok {
 		parser.errorf("special form head must be a symbol")
@@ -44,7 +44,7 @@ func (parser *Parser) buildSpecial(sexp *ast.SExp) ast.Node {
 	return nil
 }
 
-func (parser *Parser) buildIf(sexp *ast.SExp) *ast.If {
+func (parser *Parser) buildIf(sexp *ast.List) *ast.If {
 	var head *ast.Symbol // 'if or 'cond
 	var cond ast.Node
 	var then_ ast.Node
@@ -88,7 +88,7 @@ var matchImportGoAliasItem = pSexp(
 	),
 )
 
-func (parser *Parser) buildImportGo(sexp *ast.SExp) *ast.ImportGo {
+func (parser *Parser) buildImportGo(sexp *ast.List) *ast.ImportGo {
 	importgo := &ast.ImportGo{
 		PosRange: parser.posRange(),
 	}
@@ -109,7 +109,7 @@ func (parser *Parser) buildImportGo(sexp *ast.SExp) *ast.ImportGo {
 	return importgo
 }
 
-func (parser *Parser) buildSpecialOperator(sexp *ast.SExp) *ast.SpecialOp {
+func (parser *Parser) buildSpecialOperator(sexp *ast.List) *ast.SpecialOp {
 	if len(sexp.Items) < 2 {
 		parser.errorf("operator must have at least 1 operand")
 		return nil
@@ -134,7 +134,7 @@ func (parser *Parser) buildSpecialOperator(sexp *ast.SExp) *ast.SpecialOp {
 	}
 }
 
-func (parser *Parser) buildDotSelector(sexp *ast.SExp) *ast.DotSelector {
+func (parser *Parser) buildDotSelector(sexp *ast.List) *ast.DotSelector {
 	var left, right ast.Node
 	dot := &ast.Symbol{Value: "."}
 

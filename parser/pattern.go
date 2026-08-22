@@ -7,7 +7,7 @@ import (
 	"github.com/ninedraft/sulisp/language/ast"
 )
 
-func sexpMatch(sexp *ast.SExp, pats ...pattern) error {
+func sexpMatch(sexp *ast.List, pats ...pattern) error {
 	errs := make([]error, 0, len(pats))
 	for i, match := range pats {
 		var node ast.Node
@@ -32,7 +32,7 @@ var (
 
 func pSexp(patterns ...pattern) pattern {
 	return func(n ast.Node) error {
-		sexp, ok := n.(*ast.SExp)
+		sexp, ok := n.(*ast.List)
 		if !ok {
 			return fmt.Errorf("%w: want s-expr, got %s", errUnexpectedNode, n.Name())
 		}

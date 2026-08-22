@@ -205,14 +205,14 @@ func (parser *Parser) parseApply() ast.Node {
 	return sexp
 }
 
-func (parser *Parser) parseSexp() *ast.SExp {
+func (parser *Parser) parseSexp() *ast.List {
 	if !parser.expectCurrentKind(tokens.TokenLParen) {
 		return nil
 	}
 
 	parser.nextTok()
 
-	sexp := &ast.SExp{}
+	sexp := &ast.List{}
 
 	for !parser.curIs(tokens.TokenRParen, tokens.TokenEOF) {
 		node := parser.parseNode()

@@ -24,7 +24,7 @@ func DefaultEnv() *object.Env {
 	env.Assign("namespace", newBuiltin(createNamespace, object.TypeFor(object.ObjNamespace)))
 	env.Assign(">", newBuiltin(gt, object.TypeFor(object.ObjBool)))
 
-	env.Assign("array", newBuiltin(func(sexp *ast.SExp, env *object.Env, eval object.Eval) object.Object {
+	env.Assign("array", newBuiltin(func(sexp *ast.List, env *object.Env, eval object.Eval) object.Object {
 		elements, err := seq.CollectErr(resolveMany(sexp.Items, env, eval))
 		if err != nil {
 			return fmtError(sexp.PosRange, "array values: %w", err)
@@ -44,7 +44,7 @@ func newBuiltin(fn object.BuiltinFn, t *object.Type) *object.Builtin {
 	}
 }
 
-func createNamespace(sexp *ast.SExp, env *object.Env, eval object.Eval) object.Object {
+func createNamespace(sexp *ast.List, env *object.Env, eval object.Eval) object.Object {
 	ns := env.Child()
 
 	if err := asError(assign(sexp, ns, eval)); err != nil {
@@ -56,7 +56,7 @@ func createNamespace(sexp *ast.SExp, env *object.Env, eval object.Eval) object.O
 	}
 }
 
-func assign(sexp *ast.SExp, env *object.Env, eval object.Eval) object.Object {
+func assign(sexp *ast.List, env *object.Env, eval object.Eval) object.Object {
 	args := sexp.Items
 	if len(args)%2 != 0 {
 		return &object.Error{
@@ -120,7 +120,7 @@ func Eval(node ast.Node, env *object.Env) object.Object {
 		}
 
 		return result
-	case *ast.SExp:
+	case *ast.List:
 		return apply(node.Items[0], node.Items[1:], env, Eval)
 	}
 
@@ -129,7 +129,7 @@ func Eval(node ast.Node, env *object.Env) object.Object {
 	}
 }
 
-func builtinApply(sexp *ast.SExp, env *object.Env, eval object.Eval) object.Object {
+func builtinApply(sexp *ast.List, env *object.Env, eval object.Eval) object.Object {
 	if len(sexp.Items) != 2 {
 		return fmtError(sexp.Pos(), "apply got %d arguments, but expects 2: a function and an array", len(sexp.Items))
 	}
@@ -142,7 +142,7 @@ func apply(fn ast.Node, args []ast.Node, env *object.Env, eval object.Eval) obje
 
 	switch head := head.(type) {
 	case *object.Builtin:
-		return head.Fn(&ast.SExp{
+		return head.Fn(&ast.List{
 			PosRange: fn.Pos(),
 			Items:    args,
 		}, env, Eval)
@@ -228,7 +228,7 @@ func evalIf(op *ast.If, env *object.Env, eval object.Eval) object.Object {
 	return eval(op.Else, env)
 }
 
-func gt(op *ast.SExp, env *object.Env, eval object.Eval) object.Object {
+func gt(op *ast.List, env *object.Env, eval object.Eval) object.Object {
 	if len(op.Items) < 2 {
 		return fmtError(op.Pos(), "< want at lease 2 arguments, got %d", len(op.Items)-1)
 	}

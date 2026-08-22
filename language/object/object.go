@@ -239,7 +239,7 @@ func (ret *Return) Inspect() string {
 
 type Function struct {
 	Parameters []*ast.Symbol
-	Body       *ast.SExp
+	Body       *ast.List
 	Env        *Env
 }
 
@@ -266,7 +266,7 @@ func (fn *Function) Inspect() string {
 
 type Eval = func(node ast.Node, env *Env) Object
 
-type BuiltinFn func(args *ast.SExp, env *Env, eval Eval) Object
+type BuiltinFn func(args *ast.List, env *Env, eval Eval) Object
 
 type Builtin struct {
 	Name string

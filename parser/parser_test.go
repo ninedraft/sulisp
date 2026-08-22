@@ -21,7 +21,7 @@ func TestParse_Symbol(t *testing.T) {
 		(applorange)
 	`)
 
-	sexp := requireItem[*ast.SExp](t, pkg.Nodes, 0, "parsed package")
+	sexp := requireItem[*ast.List](t, pkg.Nodes, 0, "parsed package")
 	symbol := requireItem[*ast.Symbol](t, sexp.Items, 0, "parsed symbol")
 
 	assertEqual(t, &ast.Symbol{Value: "applorange"}, symbol, "parsed symbol")
@@ -34,7 +34,7 @@ func TestParse_Keyword(t *testing.T) {
 		(:applorange)
 	`)
 
-	sexp := requireItem[*ast.SExp](t, pkg.Nodes, 0, "parsed package")
+	sexp := requireItem[*ast.List](t, pkg.Nodes, 0, "parsed package")
 	symbol := requireItem[*ast.Keyword](t, sexp.Items, 0, "parsed symbol")
 
 	assertEqual(t, &ast.Keyword{Value: ":applorange"}, symbol, "parsed symbol")
@@ -47,7 +47,7 @@ func TestParse_Numbers(t *testing.T) {
 		(123 1.2)
 	`)
 
-	sexp := requireItem[*ast.SExp](t, pkg.Nodes, 0, "parsed package")
+	sexp := requireItem[*ast.List](t, pkg.Nodes, 0, "parsed package")
 
 	intLit := requireItem[*ast.Literal[int64]](t, sexp.Items, 0, "parsed int literal")
 	require.Equal(t, int64(123), intLit.Value, "parsed int literal")
@@ -63,7 +63,7 @@ func TestParse_String(t *testing.T) {
 		("applorange")
 	`)
 
-	sexp := requireItem[*ast.SExp](t, pkg.Nodes, 0, "parsed package")
+	sexp := requireItem[*ast.List](t, pkg.Nodes, 0, "parsed package")
 
 	strLit := requireItem[*ast.Literal[string]](t, sexp.Items, 0, "parsed string literal")
 	assertEqual(t, &ast.Literal[string]{Value: `"applorange"`}, strLit, "parsed string literal")
@@ -73,7 +73,7 @@ func TestParseImportGo(t *testing.T) {
 	t.Parallel()
 
 	pkg := assertParse(t, `
-		(import-go  
+		(import-go
 			"fmt"
 			net/http
 			(_ "embed")
@@ -86,8 +86,8 @@ func TestParseImportGo(t *testing.T) {
 		Items: []ast.Node{
 			&ast.Literal[string]{Value: `"fmt"`},
 			&ast.Symbol{Value: "net/http"},
-			ast.NewSexp(&ast.Symbol{Value: "_"}, &ast.Literal[string]{Value: `"embed"`}),
-			ast.NewSexp(&ast.Symbol{Value: "!"}, &ast.Symbol{Value: "database/sql"}),
+			ast.NewList(&ast.Symbol{Value: "_"}, &ast.Literal[string]{Value: `"embed"`}),
+			ast.NewList(&ast.Symbol{Value: "!"}, &ast.Symbol{Value: "database/sql"}),
 		},
 	}
 
@@ -108,12 +108,12 @@ func TestParseIf(t *testing.T) {
 	node := requireItem[*ast.If](t, pkg.Nodes, 0, "parsed package")
 
 	want := &ast.If{
-		Cond: &ast.SExp{
+		Cond: &ast.List{
 			Items: []ast.Node{
 				&ast.Symbol{Value: "cond1"},
 			},
 		},
-		Then: &ast.SExp{
+		Then: &ast.List{
 			Items: []ast.Node{
 				&ast.Symbol{Value: "then1"},
 			},
@@ -134,17 +134,17 @@ func TestParseIfElse(t *testing.T) {
 	node := requireItem[*ast.If](t, pkg.Nodes, 0, "parsed package")
 
 	want := &ast.If{
-		Cond: &ast.SExp{
+		Cond: &ast.List{
 			Items: []ast.Node{
 				&ast.Symbol{Value: "cond1"},
 			},
 		},
-		Then: &ast.SExp{
+		Then: &ast.List{
 			Items: []ast.Node{
 				&ast.Symbol{Value: "then1"},
 			},
 		},
-		Else: &ast.SExp{
+		Else: &ast.List{
 			Items: []ast.Node{
 				&ast.Symbol{Value: "else1"},
 			},
@@ -164,12 +164,12 @@ func TestParseCond(t *testing.T) {
 	node := requireItem[*ast.If](t, pkg.Nodes, 0, "parsed package")
 
 	want := &ast.If{
-		Cond: &ast.SExp{
+		Cond: &ast.List{
 			Items: []ast.Node{
 				&ast.Symbol{Value: "cond1"},
 			},
 		},
-		Then: &ast.SExp{
+		Then: &ast.List{
 			Items: []ast.Node{
 				&ast.Symbol{Value: "then1"},
 			},
@@ -225,7 +225,7 @@ func TestParseDotSelector(t *testing.T) {
 	y := &ast.Symbol{Value: "y"}
 	want := &ast.DotSelector{
 		Left:  a,
-		Right: ast.NewSexp(x, y),
+		Right: ast.NewList(x, y),
 	}
 
 	assertEqual(t, want, selector, "parsed dot selector")

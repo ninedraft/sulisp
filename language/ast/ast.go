@@ -25,7 +25,7 @@ func (pos PosRange) Pos() PosRange {
 	return pos
 }
 
-type Atom[E LiteralValue] struct {
+type Atom[E AtomValue] struct {
 	PosRange
 	Kind  tokens.TokenKind
 	Value E
@@ -60,187 +60,57 @@ func (atom *Atom[E]) String() string {
 }
 
 func (atom *Atom[E]) Clone() Node {
-	return shallow(atom)
+	return cloneShallow(atom)
 }
 
-type LiteralValue interface {
+type AtomValue interface {
 	string | int64 | float64 | bool
 }
 
-type Literal[L LiteralValue] struct {
-	PosRange
-	Value L
-}
-
-func (lit *Literal[E]) Equal(other Node) bool {
-	if lit == nil {
-		return other == nil
-	}
-
-	o, ok := other.(*Literal[E])
-	if !ok {
-		return false
-	}
-
-	return lit.Value == o.Value
-}
-
-func (*Literal[L]) Name() string {
-	var v L
-	switch any(v).(type) {
-	case string:
-		return "string"
-	case int64:
-		return "int"
-	case float64:
-		return "float"
-	case bool:
-		return "bool"
-	}
-
-	return fmt.Sprintf("literal[%T]", v)
-}
-
-func (lit *Literal[L]) String() string {
-	return fmt.Sprint(lit.Value)
-}
-
-func (lit *Literal[L]) Clone() Node {
-	return shallow(lit)
-}
-
-type Package struct {
-	PosRange
-	Nodes []Node
-}
-
-func (pkg *Package) Equal(other Node) bool {
-	if pkg == nil {
-		return other == nil
-	}
-
-	if o, _ := other.(*Package); o != nil {
-		return equalSlices(pkg.Nodes, o.Nodes)
-	}
-
-	return false
-}
-
-func (*Package) Name() string {
-	return "package"
-}
-
-func (pkg *Package) String() string {
-	str := &strings.Builder{}
-	joinStringers(str, "\n\n", pkg.Nodes)
-	return str.String()
-}
-
-func (pkg *Package) Clone() Node {
-	if pkg == nil {
-		return nil
-	}
-
-	clone := *pkg
-	clone.Nodes = cloneSlice(pkg.Nodes)
-
-	return &clone
-}
-
-type Symbol struct {
-	PosRange
-	Value string
-}
-
-func (sym *Symbol) Equal(node Node) bool {
-	if sym == nil {
-		return node == nil
-	}
-
-	if o, _ := node.(*Symbol); o != nil {
-		return sym.Value == o.Value
-	}
-
-	return false
-}
-
-func (*Symbol) Name() string { return tokens.TokenSymbol.String() }
-
-func (sym *Symbol) String() string { return sym.Value }
-
-func (sym *Symbol) Clone() Node {
-	return shallow(sym)
-}
-
-type Keyword struct {
-	PosRange
-	Value string
-}
-
-func (kw *Keyword) Equal(node Node) bool {
-	if node == nil {
-		return node == nil
-	}
-
-	if o, _ := node.(*Keyword); o != nil {
-		return kw.Value == o.Value
-	}
-
-	return false
-}
-
-func (*Keyword) Name() string { return tokens.TokenKeyword.String() }
-
-func (kw *Keyword) String() string { return kw.Value }
-
-func (kw *Keyword) Clone() Node {
-	return shallow(kw)
-}
-
-type SExp struct {
+type List struct {
 	PosRange
 	Items []Node
 }
 
-func NewSexp(items ...Node) *SExp {
-	return &SExp{
+func NewList(items ...Node) *List {
+	return &List{
 		Items: items,
 	}
 }
 
-func (sexp *SExp) Name() string {
+func (list *List) Name() string {
 	return "s-expr"
 }
 
-func (sexp *SExp) String() string {
+func (list *List) String() string {
 	str := &strings.Builder{}
 
 	str.WriteRune('(')
-	joinStringers(str, " ", sexp.Items)
+	joinStringers(str, " ", list.Items)
 	str.WriteRune(')')
 
 	return str.String()
 }
 
-func (sexp *SExp) Equal(other Node) bool {
-	if sexp == nil {
+func (list *List) Equal(other Node) bool {
+	if list == nil {
 		return other == nil
 	}
 
-	if o, _ := other.(*SExp); o != nil {
-		return equalSlices(sexp.Items, o.Items)
+	if o, _ := other.(*List); o != nil {
+		return equalSlices(list.Items, o.Items)
 	}
 
 	return false
 }
 
-func (sexp *SExp) Clone() Node {
-	if sexp == nil {
+func (list *List) Clone() Node {
+	if list == nil {
 		return nil
 	}
 
-	clone := *sexp
-	clone.Items = cloneSlice(sexp.Items)
+	clone := *list
+	clone.Items = cloneSlice(list.Items)
 
 	return &clone
 }
@@ -275,7 +145,7 @@ func (dot *DotSelector) Clone() Node {
 		return nil
 	}
 
-	clone := shallow(dot)
+	clone := cloneShallow(dot)
 	clone.Left = Clone(dot.Left)
 	clone.Right = Clone(dot.Right)
 
@@ -303,7 +173,7 @@ func cloneSlice[E Node](slice []E) []E {
 	return clone
 }
 
-func shallow[E any](ptr *E) *E {
+func cloneShallow[E any](ptr *E) *E {
 	if ptr == nil {
 		return nil
 	}
