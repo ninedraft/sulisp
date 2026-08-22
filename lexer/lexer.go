@@ -150,7 +150,7 @@ func (lexer *Lexer) readNumber() (*language.Token, error) {
 	kind := language.TokenInt
 
 	for current := sc.Current(); ; current = sc.Scan() {
-		if containsRune(".eE", current) {
+		if containsRune(floaty, current) {
 			kind = language.TokenFloat
 		}
 
